@@ -12,7 +12,7 @@ queens_aux(UnplacedQs,SafeQs,Qs) :-
     queens_aux(UnplacedQs1,[Q|SafeQs],Qs).
 queens_aux([],Qs,Qs).
 
-not_attack(_,_,[]).
+not_attack(_A1,_A2,[]).
 not_attack(Q0,D0,[Q|Qs]) :-
     Q0 =\= Q,
     Q0 =\= D0+Q,
@@ -23,3 +23,21 @@ not_attack(Q0,D0,[Q|Qs]) :-
 % queens(4,Q).
 
 % time(queens(16,Q)). 
+
+/*
+   Call: (12) queens(1, _5056) ? creep
+   Call: (13) range(1, 1, _6354) ? creep
+   Exit: (13) range(1, 1, [1]) ? creep
+   Call: (13) queens_aux([1], [], _5056) ? creep
+   Call: (14) selectx(_8804, [1], _8806) ? creep
+   Exit: (14) selectx(1, [1], []) ? creep
+   Call: (14) not_attack(1, 1, []) ? creep
+   Exit: (14) not_attack(1, 1, []) ? creep
+   Call: (14) queens_aux([], [1], _5056) ? creep
+   Call: (15) selectx(_12884, [], _12886) ? creep
+   Fail: (15) selectx(_12884, [], _12886) ? creep
+   Redo: (14) queens_aux([], [1], _5056) ? creep
+   Exit: (14) queens_aux([], [1], [1]) ? creep
+   Exit: (13) queens_aux([1], [], [1]) ? creep
+   Exit: (12) queens(1, [1]) ? creep
+*/

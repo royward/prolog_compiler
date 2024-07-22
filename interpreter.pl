@@ -5,10 +5,17 @@
 
 % convert_program(file("nqueens.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
 % convert_program(file("append.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
+% convert_program(file("selectx.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
 % convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
 % interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
 % interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
 % interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
+% interpret(file("append.pl"),string("queens_aux([1],[],X)."),Results).
+% interpret(file("nqueens.pl"),string("range(1,4,X)."),Results).
+% interpret(file("nqueens.pl"),string("selectx(X,[1],R)."),Results).
+% interpret(file("nqueens.pl"),string("not_attack(1,1,[])."),Results).
+% interpret(file("nqueens.pl"),string("queens_aux([],[1],X)."),Results).
+% interpret(file("nqueens.pl"),string("queens(4,Q)."),Results).
 
 interpret(RawProgram,RawGoal,Results) :-
     convert_program(RawProgram,Pdict,Program),
@@ -19,7 +26,7 @@ interpret(RawProgram,RawGoal,Results) :-
     get_results(InputDict,0,Sub,Results).
 
 get_results([],_,_,[]).
-get_results([Dh|Dt],N,Sub,[assign(Dh,V),R1]) :-
+get_results([Dh|Dt],N,Sub,[assign(Dh,V)|R1]) :-
     usubstitute(Sub,v(N),V),
     N1 is N+1,
     get_results(Dt,N1,Sub,R1).
@@ -117,7 +124,25 @@ run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub1,Sub2) :-
     nth0(Index,Program,Clause),
     maplist(usubstitute(Sub1),Args,Args2),
     run_program_aux(Program,Clause,Args2,NewNmax,Sub1,Sub2).
-    
+run_program_aux2(_,_,function(test_neq,A1,A2),Sub,Sub) :-
+    eval_expression(Sub,A1,i(E1)),
+    eval_expression(Sub,A2,i(E2)),
+    E1=\=E2.
+run_program_aux2(_,_,function(assign,v(V),A),Sub1,[subst(V,E)|Sub2]) :-
+    eval_expression(Sub1,A,E),
+    usubsub0(V,E,Sub1,Sub2).
+
+%run_program_aux2(PP, 5, function(assign, v(4), function(add, i(1), i(1))), [subst(0, list(i(1), v(3))), subst(2, i(2)), subst(1, i(1))], _831922)
+
+eval_expression(_,i(X),i(X)).
+eval_expression([subst(V,X)|_],v(V),X).
+eval_expression([subst(V,X)|T],v(W),X) :- V\==W,eval_expression(T,v(W),X).
+eval_expression(Sh,function(add,A1,A2),i(In)) :-
+    eval_expression(Sh,A1,i(I1)),
+    eval_expression(Sh,A2,i(I2)),
+    In is I1+I2.
+
+% This has way more cut statements than I would like
 unify(X,X,S,S) :- !.
 unify(v(V),X1,S1,[subst(V,X2)|S2]) :-
     X1\==v(V),!,
@@ -147,6 +172,10 @@ usubstitute(Sh,list(H1,T1),list(H2,T2)) :- usubstitute(Sh,H1,H2),usubstitute(Sh,
 usubstitute(Sh,fcall(N,Args),fcall(N,Args2)) :- maplist(usubstitute(Sh),Args,Args2).
 usubstitute(Sh,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubstitute(Sh,X1,X2),usubstitute(Sh,Y1,Y2).
 
+usubstitute1([],V,v(V)).
+usubstitute1([subst(V,X)|_],V,X).
+usubstitute1([subst(W,_)|T],V1,V2) :- W=\=V1,usubstitute1(T,V1,V2).
+
 usubsub0(_,_,[],[]).
 usubsub0(V,X,[subst(V,X)|T1],T2) :- usubsub0(V,X,T1,T2).
 usubsub0(V,X,[subst(V1,X1)|T1],[subst(V1,X2)|T2]) :- V\==V1,usubsub(V,X,X1,X2),usubsub0(V,X,T1,T2).
@@ -159,13 +188,9 @@ usubsub(V,X,list(H1,T1),list(H2,T2)) :- usubsub(V,X,H1,H2),usubsub(V,X,T1,T2).
 usubsub(V,X,fcall(N,Args),fcall(N,Args2)) :- map(usubsub(V,X),Args,Args2).
 usubsub(V,X,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubsub(V,X,X1,X2),usubsub(V,X,Y1,Y2).
 
-usubstitute1([],V,v(V)).
-usubstitute1([subst(V,X)|_],V,X).
-usubstitute1([subst(W,_)|T],V1,V2) :- W=\=V1,usubstitute1(T,V1,V2).
-
 var_add(N,v(V),v(V2)) :- V2 is V+N.
 var_add(_,i(V),i(V)).
 var_add(_,eol,eol).
 var_add(N,list(H1,T1),list(H2,T2)) :- var_add(N,H1,H2),var_add(N,T1,T2).
 var_add(N,fcall(M,Args),fcall(M,Args2)) :- maplist(var_add(N),Args,Args2).
-var_add(N,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubstitute(N,X1,X2),usubstitute(N,Y1,Y2).
+var_add(N,function(Op,X1,Y1),function(Op,X2,Y2)) :- var_add(N,X1,X2),var_add(N,Y1,Y2).
