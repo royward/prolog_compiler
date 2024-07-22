@@ -3,19 +3,26 @@
 :- use_module(library(plammar/environments)).
 :- use_module(library(cli_table)).
 
-% convert_program(file("nqueens.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
-% convert_program(file("append.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
-% convert_program(file("selectx.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
-% convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
-% interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
-% interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
-% interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
-% interpret(file("append.pl"),string("queens_aux([1],[],X)."),Results).
-% interpret(file("nqueens.pl"),string("range(1,4,X)."),Results).
-% interpret(file("nqueens.pl"),string("selectx(X,[1],R)."),Results).
-% interpret(file("nqueens.pl"),string("not_attack(1,1,[])."),Results).
-% interpret(file("nqueens.pl"),string("queens_aux([],[1],X)."),Results).
-% interpret(file("nqueens.pl"),string("queens(4,Q)."),Results).
+/*
+convert_program(file("nqueens.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
+convert_program(file("append.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
+convert_program(file("selectx.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
+convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
+interpret(file("append.pl"),string("append([1],[],X)."),Results).
+interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
+interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
+interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
+interpret(file("factorial.pl"),string("fact(6,R)."),Results).
+interpret(file("fibonacci.pl"),string("fib(8,R)."),Results).
+interpret(file("nqueens.pl"),string("range(1,4,X)."),Results).
+interpret(file("nqueens.pl"),string("selectx(X,[1],R)."),Results).
+interpret(file("nqueens.pl"),string("not_attack(1,1,[])."),Results).
+interpret(file("nqueens.pl"),string("queens_aux([],[1],X)."),Results).
+interpret(file("nqueens.pl"),string("queens_aux([1],[],X)."),Results).
+interpret(file("nqueens.pl"),string("queens(1,Q)."),Results).
+interpret(file("nqueens.pl"),string("queens(4,Q)."),Results).
+interpret(file("nqueens.pl"),string("queens(8,Q)."),Results).
+*/
 
 interpret(RawProgram,RawGoal,Results) :-
     convert_program(RawProgram,Pdict,Program),
@@ -54,6 +61,10 @@ map_fold1(Pred,[X|Xt],[Y|Yt],A1,A3) :- call(Pred,X,Y,A1,A2),map_fold1(Pred,Xt,Yt
 % map_fold2(Pred,ListIn,Listout,AccIn,AccOut,BccIn,BccOut).
 map_fold2(_,[],[],A,A,B,B).
 map_fold2(Pred,[X|Xs],[Y|Ys],A1,A3,B1,B3) :- call(Pred,X,Y,A1,A2,B1,B2),map_fold2(Pred,Xs,Ys,A2,A3,B2,B3).
+
+% fold2(Pred,ListIn,AccIn,AccOut,BccIn,BccOut).
+fold2(_,[],A,A,B,B).
+fold2(Pred,[X|Xs],A1,A3,B1,B3) :- call(Pred,X,A1,A2,B1,B2),fold2(Pred,Xs,A2,A3,B2,B3).
 
 convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],[]),Program).
 
@@ -99,6 +110,8 @@ process_body_one(compound(atom(Name),Args),fcall(Index,ProcessedArgs),VDict1,VDi
 process_convert_op(=\=,test_neq).
 process_convert_op(is,assign).
 process_convert_op(+,add).
+process_convert_op(-,sub).
+process_convert_op(*,times).
 
 convert_input(X,f(Name,La),Args,Dict) :-
     prolog_ast(X,prolog([fact(compound(atom(Name),RawArgs))])),
@@ -107,40 +120,46 @@ convert_input(X,f(Name,La),Args,Dict) :-
 
 run_program(Program,InitClause,Goal,Nmax,Sub,Subn) :-
     nth0(InitClause,Program,Clause),
-    run_program_aux(Program,Clause,Goal,Nmax,Sub,Subn).
+    run_program_aux(Program,Clause,Goal,Nmax,_,Sub,Subn).
 
-run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax,Sub1,Sub3) :-
-    maplist(var_add(Nmax),Args,Args2),
-    maplist(var_add(Nmax),Body,Body2),
+run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax1,Nmax2,Sub1,Sub3) :-
+    maplist(var_add(Nmax1),Args,Args2),
+    maplist(var_add(Nmax1),Body,Body2),
     map_fold1(unify,Goal,Args2,Sub1,Sub2),
     maplist(usubstitute(Sub2),Body2,Body3),
     length(Cdict,Csize),
-    NewNmax is Csize+Nmax,
-    foldl(run_program_aux2(Program,NewNmax),Body3,Sub2,Sub3).
-run_program_aux(Program,[_|Tclause],Goal,Nmax,Sub1,Sub2) :-
-    run_program_aux(Program,Tclause,Goal,Nmax,Sub1,Sub2).
+    NewNmax is Csize+Nmax1,
+    fold2(run_program_aux2(Program),Body3,NewNmax,Nmax2,Sub2,Sub3).
+run_program_aux(Program,[_|Tclause],Goal,Nmax1,Nmax2,Sub1,Sub2) :-
+    run_program_aux(Program,Tclause,Goal,Nmax1,Nmax2,Sub1,Sub2).
 
-run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub1,Sub2) :-
+run_program_aux2(Program,fcall(Index,Args),Nmax1,Nmax2,Sub1,Sub2) :-
     nth0(Index,Program,Clause),
     maplist(usubstitute(Sub1),Args,Args2),
-    run_program_aux(Program,Clause,Args2,NewNmax,Sub1,Sub2).
-run_program_aux2(_,_,function(test_neq,A1,A2),Sub,Sub) :-
+    run_program_aux(Program,Clause,Args2,Nmax1,Nmax2,Sub1,Sub2).
+run_program_aux2(_,function(test_neq,A1,A2),Nmax,Nmax,Sub,Sub) :-
     eval_expression(Sub,A1,i(E1)),
     eval_expression(Sub,A2,i(E2)),
     E1=\=E2.
-run_program_aux2(_,_,function(assign,v(V),A),Sub1,[subst(V,E)|Sub2]) :-
+run_program_aux2(_,function(assign,v(V),A),Nmax,Nmax,Sub1,[subst(V,E)|Sub2]) :-
     eval_expression(Sub1,A,E),
     usubsub0(V,E,Sub1,Sub2).
 
-%run_program_aux2(PP, 5, function(assign, v(4), function(add, i(1), i(1))), [subst(0, list(i(1), v(3))), subst(2, i(2)), subst(1, i(1))], _831922)
-
 eval_expression(_,i(X),i(X)).
 eval_expression([subst(V,X)|_],v(V),X).
-eval_expression([subst(V,X)|T],v(W),X) :- V\==W,eval_expression(T,v(W),X).
+eval_expression([subst(V,_)|T],v(W),X) :- V=\=W,eval_expression(T,v(W),X).
 eval_expression(Sh,function(add,A1,A2),i(In)) :-
     eval_expression(Sh,A1,i(I1)),
     eval_expression(Sh,A2,i(I2)),
     In is I1+I2.
+eval_expression(Sh,function(sub,A1,A2),i(In)) :-
+    eval_expression(Sh,A1,i(I1)),
+    eval_expression(Sh,A2,i(I2)),
+    In is I1-I2.
+eval_expression(Sh,function(times,A1,A2),i(In)) :-
+    eval_expression(Sh,A1,i(I1)),
+    eval_expression(Sh,A2,i(I2)),
+    In is I1*I2.
 
 % This has way more cut statements than I would like
 unify(X,X,S,S) :- !.
