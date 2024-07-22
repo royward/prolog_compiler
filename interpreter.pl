@@ -3,8 +3,8 @@
 :- use_module(library(plammar/environments)).
 :- use_module(library(cli_table)).
 
-% convert_program(file("nqueens.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_program(file("append.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
+% convert_program(file("nqueens.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
+% convert_program(file("append.pl"),PDict,Rform),print(PDict),nl,nl,print(Rform),nl,nl.
 % convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
 % interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
 % interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
@@ -24,9 +24,9 @@ get_results([Dh|Dt],N,Sub,[assign(Dh,V),R1]) :-
     N1 is N+1,
     get_results(Dt,N1,Sub,R1).
     
-convert_program(X,PredDict,Rform) :- prolog_ast(X,prolog(AST)),convert_ast_to_rform(AST,prog(PredDict,Rform)).
+convert_program(X,PDict,Rform) :- prolog_ast(X,prolog(AST)),convert_ast_to_rform(AST,prog(PDict,Rform)).
 
-get_index_dict(N,V,PredDictIn,PredDictOut) :- get_index_dict_aux(N,0,V,PredDictIn,PredDictOut).
+get_index_dict(N,V,PDictIn,PDictOut) :- get_index_dict_aux(N,0,V,PDictIn,PDictOut).
 
 get_index_dict_aux(N,I,I,[],[N]).
 get_index_dict_aux(N,I,I,[N|T],[N|T]).
@@ -51,43 +51,43 @@ map_fold2(Pred,[X|Xs],[Y|Ys],A1,A3,B1,B3) :- call(Pred,X,Y,A1,A2,B1,B2),map_fold
 convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],[]),Program).
 
 % For simplicity, I treat a fact as a rule with no body. I lose a little bit of performance that way in the interpreter, but simpler code
-convert_ast_to_rform_one(fact(compound(atom(Name),Args)),prog(PredDict1,C1),prog(PredDict3,C2)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PredDict1,PredDict2),
-    process_args_body(Args,[],[NormArgs,NormBody],VarDict,PredDict2,PredDict3),
-    append_to_nth(Index,clause(VarDict,NormArgs,NormBody),C1,C2).
-convert_ast_to_rform_one(rule(compound(atom(Name),Args),Body),prog(PredDict1,C1),prog(PredDict3,C2)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PredDict1,PredDict2),
-    process_args_body(Args,Body,[NormArgs,NormBody],VarDictOut,PredDict2,PredDict3),
-    append_to_nth(Index,clause(VarDictOut,NormArgs,NormBody),C1,C2).
+convert_ast_to_rform_one(fact(compound(atom(Name),Args)),prog(PDict1,C1),prog(PDict3,C2)) :-
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
+    process_args_body(Args,[],[NormArgs,NormBody],VDict,PDict2,PDict3),
+    append_to_nth(Index,clause(VDict,NormArgs,NormBody),C1,C2).
+convert_ast_to_rform_one(rule(compound(atom(Name),Args),Body),prog(PDict1,C1),prog(PDict3,C2)) :-
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
+    process_args_body(Args,Body,[NormArgs,NormBody],VDict,PDict2,PDict3),
+    append_to_nth(Index,clause(VDict,NormArgs,NormBody),C1,C2).
     
-process_args_body(Args,Body,[ProcessedArgs,ProcessedBody],VarDictOut,PredDictIn,PredDictOut) :-
-    map_fold1(process_args_one,Args,ProcessedArgs,[],VarDictInt),
-    map_fold2(process_body_one,Body,ProcessedBody,VarDictInt,VarDictOut,PredDictIn,PredDictOut).
+process_args_body(Args,Body,[ProcessedArgs,ProcessedBody],VDict2,PDict1,PDict2) :-
+    map_fold1(process_args_one,Args,ProcessedArgs,[],VDict1),
+    map_fold2(process_body_one,Body,ProcessedBody,VDict1,VDict2,PDict1,PDict2).
 
-process_args_one(variable(M),v(V),VarDictIn,VarDictOut) :- get_index_dict(M,V,VarDictIn,VarDictOut).
-process_args_one(anonymous,anonymous,VarDictIn,VarDictIn).
-process_args_one(eol,eol,VarDictIn,VarDictIn).
-process_args_one(integer(N),i(N),VarDictIn,VarDictIn).
-process_args_one(list([],X1),X2,VarDictIn1,VarDictIn2) :- process_args_one(X1,X2,VarDictIn1,VarDictIn2).
-process_args_one(list([Car|Cdr],X),list(Car1,Cdr1),VarDictIn,VarDictOut) :-
-    process_args_one(Car,Car1,VarDictIn,VarDictInt),
-    process_args_one(list(Cdr,X),Cdr1,VarDictInt,VarDictOut).
+process_args_one(variable(M),v(V),VDict1,VDict2) :- get_index_dict(M,V,VDict1,VDict2).
+process_args_one(anonymous,anonymous,VDict,VDict).
+process_args_one(eol,eol,VDict,VDict).
+process_args_one(integer(N),i(N),VDict,VDict).
+process_args_one(list([],X1),X2,VDict1,VDict2) :- process_args_one(X1,X2,VDict1,VDict2).
+process_args_one(list([H1|T1],X),list(H2,T2),VDict1,VDict3) :-
+    process_args_one(H1,H2,VDict1,VDict2),
+    process_args_one(list(T1,X),T2,VDict2,VDict3).
 
-process_body_one(variable(M),v(V),VarDictIn,VarDictOut,PredDict,PredDict) :- get_index_dict(M,V,VarDictIn,VarDictOut).
-process_body_one(anonymous,anonymous,VarDictIn,VarDictIn,PredDict,PredDict).
-process_body_one(eol,eol,VarDictIn,VarDictIn,PredDict,PredDict).
-process_body_one(integer(N),i(N),VarDictIn,VarDictIn,PredDict,PredDict).
-process_body_one(list([],X1),X2,VarDictIn,VarDictIn,PredDict1,PredDict2) :- process_body_one(X1,X2,VarDictIn,VarDictIn,PredDict1,PredDict2).
-process_body_one(list([Car|Cdr],X),list(Car1,Cdr1),VarDictIn,VarDictOut,PredDictIn,PredDictOut) :-
-    process_body_one(Car,Car1,VarDictIn,VarDictInt,PredDictIn,PredDictInt),
-    process_body_one(list(Cdr,X),Cdr1,VarDictInt,VarDictOut,PredDictInt,PredDictOut).
-process_body_one(infix(Op,_,Fa,Fb),function(Op2,Fa1,Fb1),VarDictIn,VarDictOut,PredDictIn,PredDictOut) :-
+process_body_one(variable(M),v(V),VDict1,VDict2,PDict,PDict) :- get_index_dict(M,V,VDict1,VDict2).
+process_body_one(anonymous,anonymous,VDict,VDict,PDict,PDict).
+process_body_one(eol,eol,VDict,VDict,PDict,PDict).
+process_body_one(integer(N),i(N),VDict,VDict,PDict,PDict).
+process_body_one(list([],X1),X2,VDict1,VDict2,PDict1,PDict2) :- process_body_one(X1,X2,VDict1,VDict2,PDict1,PDict2).
+process_body_one(list([H1|T1],X),list(H2,T2),VDict1,VDict3,PDict1,PDict3) :-
+    process_body_one(H1,H2,VDict1,VDict2,PDict1,PDict2),
+    process_body_one(list(T1,X),T2,VDict2,VDict3,PDict2,PDict3).
+process_body_one(infix(Op,_,Fa1,Fb1),function(Op2,Fa2,Fb2),VDictIn,VDictOut,PDictIn,PDictOut) :-
     process_convert_op(Op,Op2),
-    process_body_one(Fa,Fa1,VarDictIn,VarDictInt,PredDictIn,PredDictInt),
-    process_body_one(Fb,Fb1,VarDictInt,VarDictOut,PredDictInt,PredDictOut).
-process_body_one(compound(atom(Name),Args),fcall(Index,ProcessedArgs),VarDictIn,VarDictOut,PredDictIn,PredDictOut) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PredDictIn,PredDict1),
-    map_fold2(process_body_one,Args,ProcessedArgs,VarDictIn,VarDictOut,PredDict1,PredDictOut).
+    process_body_one(Fa1,Fa2,VDictIn,VDictInt,PDictIn,PDictInt),
+    process_body_one(Fb1,Fb2,VDictInt,VDictOut,PDictInt,PDictOut).
+process_body_one(compound(atom(Name),Args),fcall(Index,ProcessedArgs),VDict1,VDict2,PDict1,PDict3) :-
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
+    map_fold2(process_body_one,Args,ProcessedArgs,VDict1,VDict2,PDict2,PDict3).
 
 process_convert_op(=\=,test_neq).
 process_convert_op(is,assign).
