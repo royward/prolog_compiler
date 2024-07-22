@@ -3,12 +3,13 @@
 :- use_module(library(plammar/environments)).
 :- use_module(library(cli_table)).
 
-% convert_program(file("/home/roy/prolog/nqueens.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_program(file("/home/roy/prolog/append.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
+% convert_program(file("nqueens.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
+% convert_program(file("append.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
 % convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
-% interpret(file("/home/roy/prolog/append.pl"),string("append([1,2],[3],X)."),Results).
-% interpret(file("/home/roy/prolog/append.pl"),string("append(X,Y,[1,2,3])."),Results).
-% interpret(file("/home/roy/prolog/append.pl"),string("append(X,[3],[1,2,3])."),Results).
+% interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
+% interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
+% interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
+% interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
 
 interpret(RawProgram,RawGoal,Results) :-
     convert_program(RawProgram,Pdict,Program),
