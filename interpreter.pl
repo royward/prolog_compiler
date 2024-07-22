@@ -113,10 +113,10 @@ run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax,Sub1,Sub3) :-
 run_program_aux(Program,[_|Tclause],Goal,Nmax,Sub1,Sub2) :-
     run_program_aux(Program,Tclause,Goal,Nmax,Sub1,Sub2).
 
-run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub0,Subn) :-
+run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub1,Sub2) :-
     nth0(Index,Program,Clause),
-    maplist(usubstitute(Sub0),Args,Args2),
-    run_program_aux(Program,Clause,Args2,NewNmax,Sub0,Subn).
+    maplist(usubstitute(Sub1),Args,Args2),
+    run_program_aux(Program,Clause,Args2,NewNmax,Sub1,Sub2).
     
 unify(X,X,S,S) :- !.
 unify(v(V),X1,S1,[subst(V,X2)|S2]) :-
