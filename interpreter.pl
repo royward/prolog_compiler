@@ -102,16 +102,16 @@ run_program(Program,InitClause,Goal,Nmax,Sub,Subn) :-
     nth0(InitClause,Program,Clause),
     run_program_aux(Program,Clause,Goal,Nmax,Sub,Subn).
 
-run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax,Sub,Sub3) :-
+run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax,Sub1,Sub3) :-
     maplist(var_add(Nmax),Args,Args2),
     maplist(var_add(Nmax),Body,Body2),
-    map_fold1(unify,Goal,Args2,Sub,Sub2),
+    map_fold1(unify,Goal,Args2,Sub1,Sub2),
     maplist(usubstitute(Sub2),Body2,Body3),
     length(Cdict,Csize),
     NewNmax is Csize+Nmax,
     foldl(run_program_aux2(Program,NewNmax),Body3,Sub2,Sub3).
-run_program_aux(Program,[_|Tclause],Goal,Nmax,Sub,Subn) :-
-    run_program_aux(Program,Tclause,Goal,Nmax,Sub,Subn).
+run_program_aux(Program,[_|Tclause],Goal,Nmax,Sub1,Sub2) :-
+    run_program_aux(Program,Tclause,Goal,Nmax,Sub1,Sub2).
 
 run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub0,Subn) :-
     nth0(Index,Program,Clause),
@@ -119,21 +119,21 @@ run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub0,Subn) :-
     run_program_aux(Program,Clause,Args2,NewNmax,Sub0,Subn).
     
 unify(X,X,S,S) :- !.
-unify(v(V),X,S0,[subst(V,X1)|S1]) :-
-    X\==v(V),!,
-    unot_occurs(V,X),
-    usubstitute(S0,X,X1),
-    usubsub0(V,X1,S0,S1).
-unify(X,v(V),S0,[subst(V,X1)|S1]) :-
-    X\==v(_),!,
-    unot_occurs(V,X),
-    usubstitute(S0,X,X1),
-    usubsub0(V,X1,S0,S1).
-unify(list(H1,T1),list(H2,T2),S0,S2) :- !,
-    unify(H1,H2,S0,S1),
+unify(v(V),X1,S1,[subst(V,X2)|S2]) :-
+    X1\==v(V),!,
+    unot_occurs(V,X1),
+    usubstitute(S1,X1,X2),
+    usubsub0(V,X2,S1,S2).
+unify(X1,v(V),S1,[subst(V,X2)|S2]) :-
+    X1\==v(_),!,
+    unot_occurs(V,X1),
+    usubstitute(S1,X1,X2),
+    usubsub0(V,X2,S1,S2).
+unify(list(H1,T1),list(H2,T2),S1,S3) :- !,
+    unify(H1,H2,S1,S2),
     usubstitute(Sh,T1,W1),
     usubstitute(Sh,T2,W2),!,
-    unify(W1,W2,S1,S2).
+    unify(W1,W2,S2,S3).
 
 unot_occurs(V,v(W)) :- V\==W.
 unot_occurs(_,i(_)).
@@ -148,8 +148,8 @@ usubstitute(Sh,fcall(N,Args),fcall(N,Args2)) :- maplist(usubstitute(Sh),Args,Arg
 usubstitute(Sh,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubstitute(Sh,X1,X2),usubstitute(Sh,Y1,Y2).
 
 usubsub0(_,_,[],[]).
-usubsub0(V,X,[subst(V,X)|T0],T1) :- usubsub0(V,X,T0,T1).
-usubsub0(V,X,[subst(V0,X0)|T0],[subst(V0,X1)|T1]) :- V\==V0,usubsub(V,X,X0,X1),usubsub0(V,X,T0,T1).
+usubsub0(V,X,[subst(V,X)|T1],T2) :- usubsub0(V,X,T1,T2).
+usubsub0(V,X,[subst(V1,X1)|T1],[subst(V1,X2)|T2]) :- V\==V1,usubsub(V,X,X1,X2),usubsub0(V,X,T1,T2).
 
 usubsub(V,X,v(V),X).
 usubsub(V,_,v(W),v(W)) :- W\==V.
@@ -161,7 +161,7 @@ usubsub(V,X,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubsub(V,X,X1,X2),usubsub
 
 usubstitute1([],V,v(V)).
 usubstitute1([subst(V,X)|_],V,X).
-usubstitute1([subst(W,_)|T],V,V2) :- W=\=V,usubstitute1(T,V,V2).
+usubstitute1([subst(W,_)|T],V1,V2) :- W=\=V1,usubstitute1(T,V1,V2).
 
 var_add(N,v(V),v(V2)) :- V2 is V+N.
 var_add(_,i(V),i(V)).
