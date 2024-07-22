@@ -7,7 +7,6 @@
 % convert_program(file("append.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
 % convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
 % interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
-% interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).
 % interpret(file("append.pl"),string("append(X,Y,[1,2,3])."),Results).
 % interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
 
@@ -31,34 +30,35 @@ get_index_dict(N,V,PredDictIn,PredDictOut) :- get_index_dict_aux(N,0,V,PredDictI
 
 get_index_dict_aux(N,I,I,[],[N]).
 get_index_dict_aux(N,I,I,[N|T],[N|T]).
-get_index_dict_aux(N,I,V,[X|Tin],[X|Tout]) :-
+get_index_dict_aux(N,I,V,[X|T1],[X|T2]) :-
     N \== X,
     I1 is I+1,
-    get_index_dict_aux(N,I1,V,Tin,Tout).
+    get_index_dict_aux(N,I1,V,T1,T2).
 
 append_to_nth(0,V,[],[[V]]).
-append_to_nth(0,V,[H0|T],[H1|T]) :- append(H0,[V],H1).
+append_to_nth(0,V,[H1|T],[H2|T]) :- append(H1,[V],H2).
 append_to_nth(N,V,[],[[]|T]) :- N>0,N1 is N-1,append_to_nth(N1,V,[],T).
-append_to_nth(N,V,[H|T0],[H|T1]) :-  N>0,N1 is N-1,append_to_nth(N1,V,T0,T1).
+append_to_nth(N,V,[H|T1],[H|T2]) :-  N>0,N1 is N-1,append_to_nth(N1,V,T1,T2).
 
 % map_fold1(Pred,ListIn,Listout,AccIn,AccOut).
 map_fold1(_,[],[],A,A).
-map_fold1(Pred,[X|Xs],[Y|Ys],Ax,Ay) :- call(Pred,X,Y,Ax,Aint),map_fold1(Pred,Xs,Ys,Aint,Ay).
+map_fold1(Pred,[X|Xt],[Y|Yt],A1,A3) :- call(Pred,X,Y,A1,A2),map_fold1(Pred,Xt,Yt,A2,A3).
 
 % map_fold2(Pred,ListIn,Listout,AccIn,AccOut,BccIn,BccOut).
 map_fold2(_,[],[],A,A,B,B).
-map_fold2(Pred,[X|Xs],[Y|Ys],Ax,Ay,Bx,By) :- call(Pred,X,Y,Ax,Aint,Bx,Bint),map_fold2(Pred,Xs,Ys,Aint,Ay,Bint,By).
+map_fold2(Pred,[X|Xs],[Y|Ys],A1,A3,B1,B3) :- call(Pred,X,Y,A1,A2,B1,B2),map_fold2(Pred,Xs,Ys,A2,A3,B2,B3).
 
 convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],[]),Program).
 
-convert_ast_to_rform_one(fact(compound(atom(Name),Args)),prog(PredDictIn,Cin),prog(PredDictOut,Cout)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PredDictIn,PredDict1),
-    process_args_body(Args,[],[NormArgs,NormBody],VarDictOut,PredDict1,PredDictOut),
-    append_to_nth(Index,clause(VarDictOut,NormArgs,NormBody),Cin,Cout).
-convert_ast_to_rform_one(rule(compound(atom(Name),Args),Body),prog(PredDictIn,Cin),prog(PredDictOut,Cout)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PredDictIn,PredDict1),
-    process_args_body(Args,Body,[NormArgs,NormBody],VarDictOut,PredDict1,PredDictOut),
-    append_to_nth(Index,clause(VarDictOut,NormArgs,NormBody),Cin,Cout).
+% For simplicity, I treat a fact as a rule with no body. I lose a little bit of performance that way in the interpreter, but simpler code
+convert_ast_to_rform_one(fact(compound(atom(Name),Args)),prog(PredDict1,C1),prog(PredDict3,C2)) :-
+    length(Args,La),get_index_dict(f(Name,La),Index,PredDict1,PredDict2),
+    process_args_body(Args,[],[NormArgs,NormBody],VarDict,PredDict2,PredDict3),
+    append_to_nth(Index,clause(VarDict,NormArgs,NormBody),C1,C2).
+convert_ast_to_rform_one(rule(compound(atom(Name),Args),Body),prog(PredDict1,C1),prog(PredDict3,C2)) :-
+    length(Args,La),get_index_dict(f(Name,La),Index,PredDict1,PredDict2),
+    process_args_body(Args,Body,[NormArgs,NormBody],VarDictOut,PredDict2,PredDict3),
+    append_to_nth(Index,clause(VarDictOut,NormArgs,NormBody),C1,C2).
     
 process_args_body(Args,Body,[ProcessedArgs,ProcessedBody],VarDictOut,PredDictIn,PredDictOut) :-
     map_fold1(process_args_one,Args,ProcessedArgs,[],VarDictInt),
