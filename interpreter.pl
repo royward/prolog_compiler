@@ -5,23 +5,24 @@
 
 % convert_program(file("/home/roy/prolog/nqueens.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
 % convert_program(file("/home/roy/prolog/append.pl"),PredDict,Rform),print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_input(string("[1,2,[3,X],X,Y,5]."),Rform,[],PredDict),print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_input(string("X."),Rform,PredDict),[],print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_input(string("[1,2,3]."),Rform,[],PredDict),print(PredDict),nl,nl,print(Rform),nl,nl.
-% convert_input(string("[]."),Rform,[],PredDict),print(PredDict),nl,nl,print(Rform),nl,nl.
-% interpret(file("/home/roy/prolog/append.pl"),string("append([1,2,3],[3],X)."),2,Results).
 % convert_input(string("append([1,2,3],[3],X)."),Name,Args,Dict).
+% interpret(file("/home/roy/prolog/append.pl"),string("append([1,2],[3],X)."),Results).
+% interpret(file("/home/roy/prolog/append.pl"),string("append(X,Y,[1,2,3])."),Results).
+% interpret(file("/home/roy/prolog/append.pl"),string("append(X,[3],[1,2,3])."),Results).
 
-interpret(RawProgram,Gaol,NumOutputs,[]) :-
-    convert_program(RawProgram,Pdist1,Program),
-    convert_input(Gaol,Name,Inputs,InputDict),
-    get_index_dict(Name,InitClause,Pdist1,Pdist2),
-    print(Program),nl,
-    print(Pdist2),nl,
-    print(InitClause),nl,
-    print(NumOutputs),nl,
-    print(Inputs),nl,
-    print(InputDict),nl.    
+interpret(RawProgram,RawGoal,Results) :-
+    convert_program(RawProgram,Pdict,Program),
+    convert_input(RawGoal,Name,Goal,InputDict),
+    get_index_dict(Name,InitClause,Pdict,_),
+    length(InputDict,I1),
+    run_program(Program,InitClause,Goal,I1,[],Sub),
+    get_results(InputDict,0,Sub,Results).
+
+get_results([],_,_,[]).
+get_results([Dh|Dt],N,Sub,[assign(Dh,V),R1]) :-
+    usubstitute(Sub,v(N),V),
+    N1 is N+1,
+    get_results(Dt,N1,Sub,R1).
     
 convert_program(X,PredDict,Rform) :- prolog_ast(X,prolog(AST)),convert_ast_to_rform(AST,prog(PredDict,Rform)).
 
@@ -46,32 +47,6 @@ map_fold1(Pred,[X|Xs],[Y|Ys],Ax,Ay) :- call(Pred,X,Y,Ax,Aint),map_fold1(Pred,Xs,
 % map_fold2(Pred,ListIn,Listout,AccIn,AccOut,BccIn,BccOut).
 map_fold2(_,[],[],A,A,B,B).
 map_fold2(Pred,[X|Xs],[Y|Ys],Ax,Ay,Bx,By) :- call(Pred,X,Y,Ax,Aint,Bx,Bint),map_fold2(Pred,Xs,Ys,Aint,Ay,Bint,By).
-
-% prolog([
-% fact(compound(atom(range),[variable('M'),variable('M'),list([variable('M')],eol)])),
-% rule(compound(atom(range),[variable('M'),variable('N'),list([variable('M')],variable('Ns'))]),
-%     [infix(=\=,xfx,variable('M'),variable('N')),infix(is,xfx,variable('M1'),infix(+,yfx,variable('M'),integer(1))),compound(atom(range),[variable('M1'),variable('N'),variable('Ns')])]),
-% 
-% fact(compound(atom(selectx),[variable('X'),list([variable('X')],variable('Xs')),variable('Xs')])),
-% rule(compound(atom(selectx),[variable('X'),list([variable('Y')],variable('Ys')),list([variable('Y')],variable('Zs'))]),
-%     [compound(atom(selectx),[variable('X'),variable('Ys'),variable('Zs')])]),
-%     
-% rule(compound(atom(queens),[variable('N'),variable('Qs')]),
-%     [compound(atom(range),[integer(1),variable('N'),variable('Ns')]),compound(atom(queens_aux),[variable('Ns'),list([],eol),variable('Qs')])]),
-%     
-% rule(compound(atom(queens_aux),[variable('UnplacedQs'),variable('SafeQs'),variable('Qs')]),
-%     [compound(atom(selectx),[variable('Q'),variable('UnplacedQs'),variable('UnplacedQs1')]),
-%         compound(atom(not_attack),[variable('Q'),integer(1),variable('SafeQs')]),
-%         compound(atom(queens_aux),[variable('UnplacedQs1'),list([variable('Q')],variable('SafeQs')),variable('Qs')])]),
-% fact(compound(atom(queens_aux),[list([],eol),variable('Qs'),variable('Qs')])),
-% 
-% fact(compound(atom(not_attack),[anonymous,anonymous,list([],eol)])),
-% rule(compound(atom(not_attack),[variable('Q0'),variable('D0'),list([variable('Q')],variable('Qs'))]),
-%     [infix(=\=,xfx,variable('Q0'),variable('Q')),
-%         infix(=\=,xfx,infix(-,yfx,variable('Q0'),variable('Q')),variable('D0')),
-%         infix(=\=,xfx,infix(-,yfx,variable('Q'),variable('Q0')),variable('D0')),
-%         infix(is,xfx,variable('D1'),infix(+,yfx,variable('D0'),integer(1))),
-%         compound(atom(not_attack),[variable('Q0'),variable('D1'),variable('Qs')])])])
 
 convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],[]),Program).
 
@@ -122,40 +97,74 @@ convert_input(X,f(Name,La),Args,Dict) :-
     length(RawArgs,La),
     map_fold1(process_args_one,RawArgs,Args,[],Dict).
 
-% [f(range,3),f(selectx,3),f(queens,2),f(queens_aux,3),f(not_attack,3)]
-% [   [clause(['M'],
-%         [v(0),v(0),list(v(0),eol)],
-%             []),
-%     clause(['M','N','Ns','M1'],
-%         [v(0),v(1),list(v(0),v(2))],
-%             [function(test_neq,v(0),v(1)),
-%             function(assign,v(3),function(add,v(0),i(1))),
-%             fcall(0,[v(3),v(1),v(2)])])],
-% [   clause(['X','Xs'],
-%         [v(0),list(v(0),v(1)),v(1)],
-%             []),
-%     clause(['X','Y','Ys','Zs'],
-%         [v(0),list(v(1),v(2)),list(v(1),v(3))],
-%             [fcall(1,[v(0),v(2),v(3)])])],
-% [   clause(['N','Qs','Ns'],
-%         [v(0),v(1)],
-%             [fcall(0,[i(1),v(0),v(2)]),
-%             fcall(3,[v(2),eol,v(1)])])],
-% [   clause(['UnplacedQs','SafeQs','Qs','Q','UnplacedQs1'],
-%         [v(0),v(1),v(2)],
-%             [fcall(1,[v(3),v(0),v(4)]),
-%             fcall(4,[v(3),i(1),v(1)]),
-%             fcall(3,[v(4),list(v(3),v(1)),v(2)])]),
-%     clause(['Qs'],
-%         [eol,v(0),v(0)],
-%             [])],
-% [   clause([],
-%         [anonymous,anonymous,eol],
-%             []),
-%     clause(['Q0','D0','Q','Qs','D1'],
-%     [v(0),v(1),list(v(2),v(3))],
-%         [function(test_neq,v(0),v(2)),
-%         function(test_neq,function(sub,v(0),v(2)),v(1)),
-%         function(test_neq,function(sub,v(2),v(0)),v(1)),
-%         function(assign,v(4),function(add,v(1),i(1))),
-%         fcall(4,[v(0),v(4),v(3)])])]]
+run_program(Program,InitClause,Goal,Nmax,Sub,Subn) :-
+    nth0(InitClause,Program,Clause),
+    run_program_aux(Program,Clause,Goal,Nmax,Sub,Subn).
+
+run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax,Sub,Sub3) :-
+    maplist(var_add(Nmax),Args,Args2),
+    maplist(var_add(Nmax),Body,Body2),
+    map_fold1(unify,Goal,Args2,Sub,Sub2),
+    maplist(usubstitute(Sub2),Body2,Body3),
+    length(Cdict,Csize),
+    NewNmax is Csize+Nmax,
+    foldl(run_program_aux2(Program,NewNmax),Body3,Sub2,Sub3).
+run_program_aux(Program,[_|Tclause],Goal,Nmax,Sub,Subn) :-
+    run_program_aux(Program,Tclause,Goal,Nmax,Sub,Subn).
+
+run_program_aux2(Program,NewNmax,fcall(Index,Args),Sub0,Subn) :-
+    nth0(Index,Program,Clause),
+    maplist(usubstitute(Sub0),Args,Args2),
+    run_program_aux(Program,Clause,Args2,NewNmax,Sub0,Subn).
+    
+unify(X,X,S,S) :- !.
+unify(v(V),X,S0,[subst(V,X1)|S1]) :-
+    X\==v(V),!,
+    unot_occurs(V,X),
+    usubstitute(S0,X,X1),
+    usubsub0(V,X1,S0,S1).
+unify(X,v(V),S0,[subst(V,X1)|S1]) :-
+    X\==v(_),!,
+    unot_occurs(V,X),
+    usubstitute(S0,X,X1),
+    usubsub0(V,X1,S0,S1).
+unify(list(H1,T1),list(H2,T2),S0,S2) :- !,
+    unify(H1,H2,S0,S1),
+    usubstitute(Sh,T1,W1),
+    usubstitute(Sh,T2,W2),!,
+    unify(W1,W2,S1,S2).
+
+unot_occurs(V,v(W)) :- V\==W.
+unot_occurs(_,i(_)).
+unot_occurs(_,eol).
+unot_occurs(V,list(H,T)) :- unot_occurs(V,H),unot_occurs(V,T).
+
+usubstitute(Sh,v(V),X) :- usubstitute1(Sh,V,X).
+usubstitute(_,i(V),i(V)).
+usubstitute(_,eol,eol).
+usubstitute(Sh,list(H1,T1),list(H2,T2)) :- usubstitute(Sh,H1,H2),usubstitute(Sh,T1,T2).
+usubstitute(Sh,fcall(N,Args),fcall(N,Args2)) :- maplist(usubstitute(Sh),Args,Args2).
+usubstitute(Sh,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubstitute(Sh,X1,X2),usubstitute(Sh,Y1,Y2).
+
+usubsub0(_,_,[],[]).
+usubsub0(V,X,[subst(V,X)|T0],T1) :- usubsub0(V,X,T0,T1).
+usubsub0(V,X,[subst(V0,X0)|T0],[subst(V0,X1)|T1]) :- V\==V0,usubsub(V,X,X0,X1),usubsub0(V,X,T0,T1).
+
+usubsub(V,X,v(V),X).
+usubsub(V,_,v(W),v(W)) :- W\==V.
+usubsub(_,_,i(V),i(V)).
+usubsub(_,_,eol,eol).
+usubsub(V,X,list(H1,T1),list(H2,T2)) :- usubsub(V,X,H1,H2),usubsub(V,X,T1,T2).
+usubsub(V,X,fcall(N,Args),fcall(N,Args2)) :- map(usubsub(V,X),Args,Args2).
+usubsub(V,X,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubsub(V,X,X1,X2),usubsub(V,X,Y1,Y2).
+
+usubstitute1([],V,v(V)).
+usubstitute1([subst(V,X)|_],V,X).
+usubstitute1([subst(W,_)|T],V,V2) :- W=\=V,usubstitute1(T,V,V2).
+
+var_add(N,v(V),v(V2)) :- V2 is V+N.
+var_add(_,i(V),i(V)).
+var_add(_,eol,eol).
+var_add(N,list(H1,T1),list(H2,T2)) :- var_add(N,H1,H2),var_add(N,T1,T2).
+var_add(N,fcall(M,Args),fcall(M,Args2)) :- maplist(var_add(N),Args,Args2).
+var_add(N,function(Op,X1,Y1),function(Op,X2,Y2)) :- usubstitute(N,X1,X2),usubstitute(N,Y1,Y2).
