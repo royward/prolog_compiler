@@ -15,10 +15,7 @@ interpret(file("append.pl"),string("append(X,[3],[1,2,3])."),Results).
 interpret(file("factorial.pl"),string("fact(6,R)."),Results).
 interpret(file("fibonacci.pl"),string("fib(8,R)."),Results).
 interpret(file("nqueens.pl"),string("range(1,4,X)."),Results).
-interpret(file("nqueens.pl"),string("selectx(X,[1],R)."),Results).
-interpret(file("nqueens.pl"),string("not_attack(1,1,[])."),Results).
-interpret(file("nqueens.pl"),string("queens_aux([],[1],X)."),Results).
-interpret(file("nqueens.pl"),string("queens_aux([1],[],X)."),Results).
+interpret(file("nqueens.pl"),string("selectx(X,[1,2,3,4],R)."),Results).
 interpret(file("nqueens.pl"),string("queens(1,Q)."),Results).
 interpret(file("nqueens.pl"),string("queens(4,Q)."),Results).
 interpret(file("nqueens.pl"),string("queens(8,Q)."),Results).
