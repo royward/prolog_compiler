@@ -159,21 +159,23 @@ eval_expression(Sh,function(times,A1,A2),i(In)) :-
     In is I1*I2.
 
 % This has way more cut statements than I would like
-unify(X,X,S,S) :- !.
+unify(eol,eol,S,S).
+unify(i(V),i(V),S,S).
+unify(v(V),v(V),S,S).
 unify(v(V),X1,S1,[subst(V,X2)|S2]) :-
-    X1\==v(V),!,
+    X1\==v(V), !,
     unot_occurs(V,X1),
     usubstitute(S1,X1,X2),
     usubsub0(V,X2,S1,S2).
 unify(X1,v(V),S1,[subst(V,X2)|S2]) :-
-    X1\==v(_),!,
+    X1\==v(_),
     unot_occurs(V,X1),
     usubstitute(S1,X1,X2),
     usubsub0(V,X2,S1,S2).
-unify(list(H1,T1),list(H2,T2),S1,S3) :- !,
+unify(list(H1,T1),list(H2,T2),S1,S3) :-
     unify(H1,H2,S1,S2),
     usubstitute(Sh,T1,W1),
-    usubstitute(Sh,T2,W2),!,
+    usubstitute(Sh,T2,W2), !,
     unify(W1,W2,S2,S3).
 
 unot_occurs(V,v(W)) :- V\==W.
