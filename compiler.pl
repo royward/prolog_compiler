@@ -1,11 +1,15 @@
 /*
-compile(file("append.pl"),string("append([1,2],[3],X).")).
+compile(file("append.pl"),string("append([1,2],[3,4],X).")).
+compile(file("append.pl"),string("append([1,2],X,[1,2,3,4]).")).
+compile(file("append.pl"),string("append(X,[1],[2]).")).
+compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
+compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
 */
 
 compile(RawProgram,RawGoal) :-
     convert_program(RawProgram,Pdict,Program),
     convert_input(RawGoal,f(Name,Arity),Goal,InputDict),
-    get_index_dict(f(Name,Arity),InitClause,Pdict,_),
+    get_index_dict(f(Name,Arity),_,Pdict,_,_),
     length(InputDict,I1),
     open('PrologGenerated.cpp',write,St),
     write(St,'//////////////////////////////////////////////////////////////////////////////////////\n'),
@@ -16,18 +20,23 @@ compile(RawProgram,RawGoal) :-
     maplist(write_frame_reference_template(St),Pdict,Program),nl(St),
     write(St,'void Prolog::__do_start() {\n'),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
-    foldl(setup_args(St),Goal,0,Nargs),
-    %write(St,'std::cout << pldisplay(goal_args0,0) << std::endl;'),
-    %write(St,'std::cout << pldisplay(goal_args1,0) << std::endl;'),
-    %write(St,'std::cout << pldisplay(goal_args2,0) << std::endl;'),
-   write(St,'\tif('),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(*this'),
+    foldl(setup_args(St),Goal,0,_),
+    write(St,'\tuint32_t dummy;\n'),
+    write(St,'\tif('),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(*this'),
     write_arg(St,', goal_args',0,Arity),
-    write(St,', '),write(St,I1),write(St,')) {\n'),
+    write(St,', '),write(St,I1),write(St,', dummy)) {\n'),
+    foldl(do_output(St),InputDict,0,_),
+    write(St,'\t} else {\n'),
+    write(St,'\t\tstd::cout << "false." << std::endl;\n'),
     write(St,'\t}\n'),
     write(St,'}\n'),
-    maplist(compile_function(St),Pdict,Program),
+    maplist(compile_predicate(St,Pdict),Pdict,Program),
     close(St).
 
+do_output(St,InputName,N,N1) :-
+    N1 is N+1,
+    write(St,'\t\tstd::cout << "'),write(St,InputName),write(St,' = " << '),write(St,'pldisplay(('),write(St,N),write(St,'<<3)+TAG_VREF) << std::endl;\n').
+    
 setup_args(St,Arg,N,N1) :-
     N1 is N+1,
     write(St,'\tuint32_t goal_args'),write(St,N),write(St,'='),
@@ -55,51 +64,113 @@ write_arg(St,String,N,M) :-
 write_function_template(St,f(Name,Arity)) :-
     write(St,"bool "),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
-    write(St,', uint32_t voffset);\n').
+    write(St,', uint32_t voffset, uint32_t& voffset_new);\n').
 
 write_frame_reference_template(St,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
     (LP>1 -> write(St,'static FrameReferenceInfo '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri('),write(St,LP),write(St,');\n') ; true).
      
-compile_function(St,f(Name,Arity),Predicate) :-
+compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
     nl(St),write(St,"bool "),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
-    write(St,', uint32_t voffset) {\n'),
+    write(St,', uint32_t voffset, uint32_t& voffset_new) {\n'),
     (LP>1 -> write(St,'\tFrameStore* fs=p.process_stack_state(&'),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri);\n') ; true),
-     write(St,'\tp.unwind_stack_mark();\n'),
-     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
-    foldl(compile_clause(St,LP),Predicate,0,_),
+    (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
+    foldl(compile_clause(St,Pdict,LP),Predicate,0,_),
     (LP>1 -> write(St,'\t}\n') ; true),
-    (LP>1 -> write(St,'\tp.pop_frame_stack();\n') ; true),
+    (LP>1 -> write(St,'\t//p.pop_frame_stack();\n') ; true),
+    write(St,'\tvoffset_new=voffset;\n'),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
-compile_clause(St,LP,clause(_,Args,Body),NClause,NClause1) :-
+compile_clause(St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t\tcase '),write(St,NClause),write(St,': {\n') ; true),
-    write(St,'\t\t\tif('),
-    foldl(compile_clause_args(St),Args,0,_),
-    write(St,') {\n'),
-    maplist(compile_clause_body(St),Body),
-    write(St,'\t\t\t\treturn true;\n'),
-    write(St,'\t\t\t} else {\n'),
-    write(St,'\t\t\t\tp.unwind_stack_revert_to_mark();\n'),
-    (NClause1=\=LP -> write(St,'\t\t\t\tfs->clause_index++;\n') ; true),
-    write(St,'\t\t\t}\n'),
+    write(St,'\t\tp.unwind_stack_mark();\n'),
+    length(Dict,LD),
+    write(St,'\t\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
+    (LD>0 -> write(St,'\t\t\tuint32_t var0'),compile_clause_args_setup_vars(St,1,LD),write(St,';\n') ; true),
+    atomics_to_string(['label_c',NClause],Label),
+    fold2(compile_clause_args(St,Label),Args,0,_,[],_),
+    maplist(compile_clause_body(St,Label,Pdict),Body),
+    write(St,'\t\t\tvoffset_new=voffset_next;\n'),
+    write(St,'\t\t\treturn true;\n'),
+    write(St,'fail_'),write(St,Label),write(St,':;\n'),
+    write(St,'\t\t\tp.unwind_stack_revert_to_mark();\n'),
+    (NClause1=\=LP -> write(St,'\t\t\tfs->clause_index++;\n') ; true),
     (LP>1 -> write(St,'\t\t}\n') ; true).
 
-compile_clause_args(St,eol,N,N1) :- N1 is N+1,
-    (N==0 -> true ; write(St,' && ')),
-    write(St,'p.match_eol(arg'),write(St,N),write(St,')').
-compile_clause_args(St,i(I),N,N1) :- N1 is N+1,
-    (N==0 -> true ; write(St,' && ')),
-    write(St,'p.match_int('),write(St,I),write(St,arg),write(St,N),write(St,')').
-compile_clause_args(St,v(V),N,N1) :- N1 is N+1,
-    (N==0 -> true ; write(St,' && ')),
-    write(St,'p.match_var('),write(St,V),write(St,','),write(St,arg),write(St,N),write(St,',voffset)').
-compile_clause_args(St,list(H,T),N,N1) :- N1 is N+1,
-    (N==0 -> true ; write(St,' && ')),
-    write(St,'p.unify('),write_build(St,'p.',list(H,T)),write(St,',arg'),write(St,N),write(St,',voffset)').
+compile_clause_args_setup_vars(_,N,N).
+compile_clause_args_setup_vars(St,M,N) :- M<N,write(St,', var'),write(St,M),M1 is M+1,compile_clause_args_setup_vars(St,M1,N).
 
-compile_clause_body(St,fcall) :- 
+compile_clause_args(St,Label,X,N,N1,Used1,Used2) :-
+    N1 is N+1,
+    atomics_to_string(['arg',N],Argname),
+    compile_clause_args0(St,Label,X,Argname,Used1,Used2).
+
+compile_clause_args0(St,Label,X,N,Used1,Used2) :-
+    write(St,'\t\t\tuint8_t tag_'),write(St,N),write(St,';\n'),
+    write(St,'\t\t\tp.pointer_chase(tag_'),write(St,N),write(St,','),write(St,N),write(St,');\n'),
+    compile_clause_args_aux(St,Label,X,N,Used1,Used2),
+    write(St,'s_'),write(St,Label),write(St,'_'),write(St,N),write(St,':;\n').
+
+compile_clause_args_aux(St,Label,eol,N,Used1,Used1) :-
+    write(St,'\t\t\tif(tag_'),write(St,N),write(St,'==TAG_EOL) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
+    write(St,'\t\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
+    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=TAG_EOL;\n'),
+    write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
+%    compile_clause_args_aux(St,Label,i(I),N,Used1,Used2) :-
+%    write(St,'p.match_int('),write(St,I),write(St,arg),write(St,N),write(St,')\n').
+compile_clause_args_aux(St,Label,v(V),N,Used1,[V|Used1]) :-
+    (member(V,Used1) ->
+        write(St,'\t\t\tif(!p.unify(var'),write(St,V),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n')
+    ;
+        write(St,'\t\t\tvar'),write(St,V),write(St,'='),write(St,N),write(St,';\n'),
+        write(St,'\t\t\tp.variables['),write(St,V),write(St,'+voffset]='),write(St,N),write(St,';\n'),
+        write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,V),write(St,'+voffset;\n')
+    ).
+compile_clause_args_aux(St,Label,list(H,T),N,Used1,Used3) :-
+    H=v(Vh),
+    T=v(Vt),
+    atomics_to_string([N,'h'],ArgH),
+    atomics_to_string([N,'t'],ArgT),
+    write(St,'\t\t\tuint32_t '),write(St,ArgH),write(St,', '),write(St,ArgT),write(St,';\n'),
+    write(St,'\t\t\tif(tag_'),write(St,N),write(St,'==TAG_LIST) {\n'),
+    write(St,'\t\t\tList& '),write(St,N),write(St,'l=p.list_values['),write(St,N),write(St,'>>TAG_WIDTH];\n'),
+    write(St,'\t\t\t'),write(St,ArgH),write(St,'='),write(St,N),write(St,'l.head;\n'),
+    write(St,'\t\t\t'),write(St,ArgT),write(St,'='),write(St,N),write(St,'l.tail;\n'),
+    compile_clause_args0(St,Label,H,ArgH,Used1,Used2),
+    compile_clause_args0(St,Label,T,ArgT,Used2,Used3),
+    write(St,'\t\t\t} else if(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
+    (member(Vh,Used1) -> Used1a=Used1 ; 
+        Used1a=[Vh|Used1],
+        write(St,'\t\t\tvar'),write(St,Vh),write(St,'=('),write(St,Vh),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<3);\n'),
+        write(St,'\t\t\tp.variables['),write(St,Vh),write(St,'+voffset]=0;\n')),
+     (member(Vt,Used1a) -> true ; 
+        write(St,'\t\t\tvar'),write(St,Vt),write(St,'=('),write(St,Vt),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<3);\n'),
+        write(St,'\t\t\tp.variables['),write(St,Vt),write(St,'+voffset]=0;\n')),
+    write(St,'\t\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,','),write(St,'var'),write(St,Vt),write(St,');\n'),
+    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]='),write(St,N),write(St,'lc;\n'),
+    write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'lc>>TAG_WIDTH;\n'),
+    write(St,'\t\t\t'),write(St,N),write(St,'='),write(St,N),write(St,'lc;\n'),
+    write(St,'\t\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
+    %write(St,'\t\t\tif(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
+    %write(St,'\t\t\t}\n').
+
+compile_clause_body(St,Label,Pdict,fcall(Index,Args)) :-
+    nth0(Index,Pdict,f(Name,Arity)),
+    write(St,"\t\t\tif(!"),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
+    maplist(compile_clause_body_args(St),Args),
+    write(St,', voffset_next, voffset_next)) {goto fail_'),write(St,Label),write(St,';}\n').
+    
+compile_clause_body_args(St,v(N)) :- write(St,', var'),write(St,N).
+compile_clause_body_args(St,i(N)) :- write(St,', ('),write(St,N),write(St,'<<TAG_WIDTH)+TAG_INTEGER').
+compile_clause_body_args(St,eol) :- write(St,', TAG_EOL').
+compile_clause_body_args(St,list(H,T)) :-
+    write(St,', plcreate_list('),
+    compile_clause_body_args(St,H),
+    write(St,','),
+    compile_clause_body_args(St,T),
+    write(St,')').
+

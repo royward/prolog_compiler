@@ -11,6 +11,7 @@ static const uint8_t TAG_LIST=0b010;
 static const uint8_t TAG_EOL=0b110;
 static const uint8_t TAG_INTEGER=0b100;
 static const uint32_t TAG_MASK=0b111;
+static const uint32_t TAG_WIDTH=3;
 
 struct FrameReferenceInfo {
     FrameReferenceInfo(uint32_t p) {count=p;};
@@ -46,43 +47,52 @@ public:
 
 class Prolog {
 public:
-    inline void pointer_chase(uint32_t& val, uint32_t voffset) {
-        while((val&TAG_MASK)==0) {
-            val=variables[(val>>3)+voffset];
+//     inline void pointer_chase(uint32_t& val, uint32_t voffset) {
+//         while((val&TAG_MASK)==TAG_VREF) {
+//             val=variables[(val>>TAG_WIDTH)+voffset];
+//         }
+//     }
+    inline void pointer_chase(uint8_t& tag, uint32_t& val) {
+        uint32_t v;
+        while((val&TAG_MASK)==TAG_VREF && (v=variables[(val>>TAG_WIDTH)])!=0) {
+            val=v;
         }
+        tag=(val&TAG_MASK);
     }
-    inline void pointer_chase(uint32_t& val) {
-        while((val&TAG_MASK)==0) {
-            val=variables[(val>>3)];
-        }
-    }
-    bool unify(uint32_t val1, uint32_t voffset1, uint32_t val2, uint32_t voffset2);
-    bool unify(uint32_t val1, uint32_t val2, uint32_t voffset2);
+    //bool unify(uint32_t val1, uint32_t voffset1, uint32_t val2, uint32_t voffset2);
+    bool unify(uint32_t val1, uint32_t val2);
     bool match_eol(uint32_t val);
     bool match_int(uint32_t i,uint32_t val);
     bool match_var(uint32_t v,uint32_t val, uint32_t voffset);
-    uint32_t get_list_cell();
+    inline uint32_t get_list_cell() {
+        if(freelist_list==0) {
+            return top_list_values++;
+        }
+        uint32_t ret=freelist_list;
+        freelist_list=list_values[freelist_list].head;
+        return ret;
+    }
     void delete_list_cell(uint32_t cell);
     void __do_start();
     uint32_t plcreate_eol();
     uint32_t plcreate_int(uint32_t i);
     uint32_t plcreate_var(uint32_t i);
     uint32_t plcreate_list(uint32_t h, uint32_t t);
-    std::string pldisplay(uint32_t x, uint32_t offset);
+    std::string pldisplay(uint32_t x);
     FrameStore* process_stack_state(FrameReferenceInfo* fri);
     void pop_frame_stack();
     void unwind_stack_mark();
     void unwind_stack_revert_to_mark();
-private:
-    void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i, uint32_t offset);
-    uint32_t* variables=new uint32_t[STACK_SIZES];
-    List* list_values=new List[STACK_SIZES];
+    uint32_t* variables=new uint32_t[STACK_SIZES]();
     uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
     uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
-    uint32_t top_variables=0;
-    uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t top_unwind_stack_decouple=0;
     uint32_t top_unwind_stack_decouple_mark=0;
+    List* list_values=new List[STACK_SIZES];
+private:
+    void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
+    uint32_t top_variables=0;
+    uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t freelist_list=0;
     uint8_t* stack_storage=new uint8_t[STACK_SIZES];
     FrameStore frames[10];

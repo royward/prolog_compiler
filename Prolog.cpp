@@ -24,30 +24,30 @@ Tags in low bits - tags are not for that type, but for the type that it is point
 //     uint8_t tag2=val2&TAG_MASK;
 //     uint8_t tag1=val1&TAG_MASK;
 //     if(tag2==TAG_VREF_UNUNIFIED) {
-//         variables[(val2>>3)+voffset2]=val1;
+//         variables[(val2>>TAG_WIDTH)+voffset2]=val1;
 //         return true;
 //     }
 //     if(tag1==TAG_VREF_UNUNIFIED) {
-//         variables[(val1>>3)+voffset1]=val2;
+//         variables[(val1>>TAG_WIDTH)+voffset1]=val2;
 //         return true;
 //     }
 //     return false;
 // }
 
-bool Prolog::unify(uint32_t val1, uint32_t val2, uint32_t voffset1) {
+bool Prolog::unify(uint32_t val1, uint32_t val2) {
     // First do any pointer chasing. There may be benefits to checking variable matching first
-    pointer_chase(val1,voffset1);
-    pointer_chase(val2);
-    uint8_t tag2=val2&TAG_MASK;
-    uint8_t tag1=val1&TAG_MASK;
-    if(tag2==TAG_VREF_UNUNIFIED) {
-        variables[(val2>>3)]=voffset1;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>3;
+    uint8_t tag1;
+    pointer_chase(tag1,val1);
+    uint8_t tag2;
+    pointer_chase(tag2,val2);
+    if(tag2==TAG_VREF) {
+        variables[(val2>>TAG_WIDTH)]=val1;
+        unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>TAG_WIDTH;
         return true;
     }
-    if(tag1==TAG_VREF_UNUNIFIED) {
-        variables[(val1>>3)+voffset1]=val2;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=(val1>>3)+voffset1;
+    if(tag1==TAG_VREF) {
+        variables[(val1>>TAG_WIDTH)]=val2;
+        unwind_stack_decouple[top_unwind_stack_decouple++]=(val1>>TAG_WIDTH);
         return true;
     }
     if(tag1!=tag2) {
@@ -55,9 +55,9 @@ bool Prolog::unify(uint32_t val1, uint32_t val2, uint32_t voffset1) {
     }
     switch(tag1) {
         case TAG_LIST: {
-            List& l1=list_values[val1>>3];
-            List& l2=list_values[val2>>3];
-            return unify(l1.head,l2.head,voffset1) && unify(l1.tail,l2.tail,voffset1);
+            List& l1=list_values[val1>>TAG_WIDTH];
+            List& l2=list_values[val2>>TAG_WIDTH];
+            return unify(l1.head,l2.head) && unify(l1.tail,l2.tail);
         } break;
         case TAG_EOL: {
             return true;
@@ -69,50 +69,41 @@ bool Prolog::unify(uint32_t val1, uint32_t val2, uint32_t voffset1) {
     }
 }
 
-bool Prolog::match_eol(uint32_t val) {
-    pointer_chase(val);
-    uint8_t tag=val&TAG_MASK;
-    if(tag==TAG_EOL) {
-        return true;
-    }
-    if(tag==TAG_VREF_UNUNIFIED) {
-        variables[val>>3]=TAG_EOL;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=val>>3;
-        return true;
-    }
-    return false;
-}
-
-bool Prolog::match_int(uint32_t i,uint32_t val) {
-    pointer_chase(val);
-    uint8_t tag=val&TAG_MASK;
-    if(tag==TAG_INTEGER) {
-        return (val>>3)==i;
-    }
-    if(tag==TAG_VREF_UNUNIFIED) {
-        variables[val>>3]=(i<<3)+TAG_INTEGER;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=val>>3;
-        return true;
-    }
-    return false;
-}
-
-bool Prolog::match_var(uint32_t v,uint32_t val, uint32_t voffset) {
-    pointer_chase(val);
-    variables[(v>>3)+voffset]=val;
-    unwind_stack_decouple[top_unwind_stack_decouple++]=v>>3;
-    return true;
-}
+// bool Prolog::match_eol(uint32_t val) {
+//     pointer_chase(val);
+//     uint8_t tag=val&TAG_MASK;
+//     if(tag==TAG_EOL) {
+//         return true;
+//     }
+//     if(tag==TAG_VREF_UNUNIFIED) {
+//         variables[val>>TAG_WIDTH]=TAG_EOL;
+//         unwind_stack_decouple[top_unwind_stack_decouple++]=val>>TAG_WIDTH;
+//         return true;
+//     }
+//     return false;
+// }
+// 
+// bool Prolog::match_int(uint32_t i,uint32_t val) {
+//     pointer_chase(val);
+//     uint8_t tag=val&TAG_MASK;
+//     if(tag==TAG_INTEGER) {
+//         return (val>>TAG_WIDTH)==i;
+//     }
+//     if(tag==TAG_VREF_UNUNIFIED) {
+//         variables[val>>TAG_WIDTH]=(i<<TAG_WIDTH)+TAG_INTEGER;
+//         unwind_stack_decouple[top_unwind_stack_decouple++]=val>>TAG_WIDTH;
+//         return true;
+//     }
+//     return false;
+// }
+// 
+// bool Prolog::match_var(uint32_t v,uint32_t val, uint32_t voffset) {
+//     pointer_chase(val);
+//     variables[(v>>TAG_WIDTH)+voffset]=val;
+//     unwind_stack_decouple[top_unwind_stack_decouple++]=v>>TAG_WIDTH;
+//     return true;
+// }
  
-uint32_t Prolog::get_list_cell() {
-    if(freelist_list==0) {
-        return top_list_values++;
-    }
-    uint32_t ret=freelist_list;
-    freelist_list=list_values[freelist_list].head;
-    return ret;
-}
-
 void Prolog::delete_list_cell(uint32_t cell) {
     list_values[cell].head=freelist_list;
     freelist_list=cell;
@@ -123,50 +114,50 @@ uint32_t Prolog::plcreate_eol() {
 }
 
 uint32_t Prolog::plcreate_int(uint32_t i) {
-    return (i<<3)+TAG_INTEGER;
+    return (i<<TAG_WIDTH)+TAG_INTEGER;
 }
 
 uint32_t Prolog::plcreate_var(uint32_t i) {
     if(top_variables<i+1) {
         top_variables=i+1;
     }
-    return (i<<3)+TAG_VREF_UNUNIFIED;
+    return (i<<TAG_WIDTH)+TAG_VREF;
 }
 
 uint32_t Prolog::plcreate_list(uint32_t h, uint32_t t) {
     uint32_t l=get_list_cell();
     list_values[l].head=h;
     list_values[l].tail=t;
-    return (l<<3)+TAG_LIST;
+    return (l<<TAG_WIDTH)+TAG_LIST;
 }
 
-std::string Prolog::pldisplay(uint32_t i, uint32_t offset) {
+std::string Prolog::pldisplay(uint32_t i) {
     std::stringstream ss;
-    pldisplay_aux(ss,' ',false,i,offset);
+    pldisplay_aux(ss,' ',false,i);
     return ss.str();
 }
 
-void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i, uint32_t offset) {
-    pointer_chase(i,offset);
-    uint8_t tag=i&TAG_MASK;
+void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i) {
+    uint8_t tag;
+    pointer_chase(tag,i);
     if(tag==TAG_EOL && in_list) {
         return;
     }
-    uint32_t v=i>>3;
+    uint32_t v=i>>TAG_WIDTH;
     if(ch!=' ') {
         ss << ch;
     }
     switch(tag) {
-        case TAG_VREF_UNUNIFIED: {
-            ss << '_' << (v+offset);
+        case TAG_VREF: {
+            ss << '_' << v;
         } break;
         case TAG_LIST: {
             if(!in_list) {
                 ss << '[';
             }
             List& l=list_values[v];
-            pldisplay_aux(ss,' ',false,l.head,offset);
-            pldisplay_aux(ss,',',true,l.tail,offset);
+            pldisplay_aux(ss,' ',false,l.head);
+            pldisplay_aux(ss,',',true,l.tail);
             if(!in_list) {
                 ss << ']';
             }
@@ -218,7 +209,7 @@ FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state(FrameReferenc
     // Can't make a call here as messing up the stack, and can't use any outside code until complete
     uint64_t* dst=(uint64_t*)(&base_sp[-(int64_t)fs.size]);
     uint64_t* src=(uint64_t*)(&stack_storage[global_stack_storage_index-fs.size]);
-    for(uint32_t i=0;i<fs.size>>3;i++) {
+    for(uint32_t i=0;i<fs.size>>TAG_WIDTH;i++) {
         dst[i]=src[i];
     }
     if(fs.clause_index+1>=fs.fri->count) {
@@ -249,7 +240,7 @@ void Prolog::unwind_stack_mark() {
 void Prolog::unwind_stack_revert_to_mark() {
     uint32_t bottom=unwind_stack_decouple_mark[--top_unwind_stack_decouple_mark];
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-        variables[i]=0;
+        variables[unwind_stack_decouple[i]]=0;
     }
 }
 
