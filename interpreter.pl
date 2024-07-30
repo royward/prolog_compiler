@@ -24,7 +24,7 @@ interpret(file("nqueens.pl"),string("queens(8,Q)."),Results).
 interpret(RawProgram,RawGoal,Results) :-
     convert_program(RawProgram,Pdict,Program),
     convert_input(RawGoal,Name,Goal,InputDict),
-    get_index_dict(Name,InitClause,Pdict,_),
+    get_index_dict(Name,InitClause,Pdict,_,_),
     length(InputDict,I1),
     run_program(Program,InitClause,Goal,I1,[],Sub),
     get_results(InputDict,0,Sub,Results).

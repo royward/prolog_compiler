@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-const static uint32_t STACK_SIZES=1000000;
+const static int64_t STACK_SIZES=1000000;
 
 static const uint8_t TAG_VREF_UNUNIFIED=0b000;
 static const uint8_t TAG_VREF=0b001;
@@ -32,10 +32,15 @@ struct FrameStore {
     uint8_t* store_13;
     uint8_t* store_14;
     uint8_t* store_15;
-    FrameReferenceInfo* fri=nullptr;
-    uint32_t stack_storage_index;
-    uint32_t size;
-    uint32_t clause_index;
+    uint8_t* stack_bottom;
+    uint8_t* stack_top;
+    int32_t clause_index;
+    int32_t clause_count;
+    uint32_t frame_index;
+    uint32_t top_unwind_stack_decouple_mark;
+    uint64_t* src;
+    uint64_t* dst;
+    uint8_t size;
 };
 
 class List {
@@ -79,24 +84,28 @@ public:
     uint32_t plcreate_var(uint32_t i);
     uint32_t plcreate_list(uint32_t h, uint32_t t);
     std::string pldisplay(uint32_t x);
-    FrameStore* process_stack_state(FrameReferenceInfo* fri);
-    void pop_frame_stack();
+    void process_stack_state(FrameStore* fs);
+    void process_stack_state_save(FrameStore* fs);
+    void process_stack_state_save_aux(FrameStore* fs);
+    FrameStore* process_stack_state_load();
+    FrameStore* process_stack_state_load_aux();
+    void pop_frame_stack(FrameStore* fs);
     void unwind_stack_mark();
     void unwind_stack_revert_to_mark();
-    uint32_t* variables=new uint32_t[STACK_SIZES]();
-    uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
-    uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
-    uint32_t top_unwind_stack_decouple=0;
-    uint32_t top_unwind_stack_decouple_mark=0;
-    List* list_values=new List[STACK_SIZES];
-private:
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
+
+    uint8_t* base_sp=0;
+    FrameStore* frames=new FrameStore[1000];
+    uint8_t* stack_storage=new uint8_t[STACK_SIZES];
+    uint32_t* variables=new uint32_t[STACK_SIZES]();
+    uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
+    uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
+    uint32_t top_unwind_stack_decouple_mark=0;
+    uint32_t top_unwind_stack_decouple=0;
+    uint32_t frame_count=0;
+
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t freelist_list=0;
-    uint8_t* stack_storage=new uint8_t[STACK_SIZES];
-    FrameStore frames[10];
-    uint32_t frame_count=0;
-    uint8_t* base_sp=0;
-    uint32_t global_stack_storage_index=0;
+    List* list_values=new List[STACK_SIZES];
 };
