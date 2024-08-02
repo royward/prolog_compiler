@@ -43,7 +43,7 @@ compile(RawProgram,RawGoal) :-
 
 do_output(St,InputName,N,N1) :-
     N1 is N+1,
-    write(St,'\t\t\tstd::cout << "'),write(St,InputName),write(St,' = " << '),write(St,'pldisplay(('),write(St,N),write(St,'<<3)+TAG_VREF) << std::endl;\n').
+    write(St,'\t\t\tstd::cout << "'),write(St,InputName),write(St,' = " << '),write(St,'pldisplay(('),write(St,N),write(St,'<<TAG_WIDTH)+TAG_VREF) << std::endl;\n').
     
 setup_args(St,Arg,N,N1) :-
     N1 is N+1,
@@ -88,10 +88,8 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     write(St,'\tif(setup_bool) {\n'),
     compile_clause_args_pointer_chase(St,Arity,0),
     write(St,'\t\tp.unwind_stack_mark();\n'),
-    write(St,'\t\tp.process_stack_state_save(fs);\n'),
-    write(St,'\t} else {\n'),
-    write(St,'\t\tfs=p.process_stack_state_load();\n'),
     write(St,'\t}\n'),
+    write(St,'\tfs=p.process_stack_state_load_save(setup_bool?fs:nullptr);\n'),
     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
     foldl(compile_clause(St,Pdict,LP),Predicate,0,_),
     (LP>1 -> write(St,'\t}\n') ; true),
@@ -145,9 +143,9 @@ compile_clause_args1_aux2(St,Label,eol,N,Used1,Used1) :-
     write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=TAG_EOL;\n'),
     write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
 compile_clause_args1_aux2(St,Label,i(I),N,Used1,Used1) :-
-    write(St,'\t\t\tif('),write(St,N),write(St,'==('),write(St,I),write(St,'<<3)+TAG_INTEGER) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
+    write(St,'\t\t\tif('),write(St,N),write(St,'==('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=('),write(St,I),write(St,'<<3)+TAG_INTEGER;\n'),
+    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER;\n'),
     write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
 %    compile_clause_args1_aux2(St,Label,i(I),N,Used1,Used2) :-
 %    write(St,'p.match_int('),write(St,I),write(St,arg),write(St,N),write(St,')\n').
@@ -179,11 +177,11 @@ compile_clause_args1_aux2(St,Label,list(H,T),N,Used1,Used3) :-
     write(St,'\t\t\t} else if(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
     (member(Vh,Used1) -> Used1a=Used1 ; 
         Used1a=[Vh|Used1],
-        write(St,'\t\t\tvar'),write(St,Vh),write(St,'=('),write(St,Vh),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<3);\n'),
+        write(St,'\t\t\tvar'),write(St,Vh),write(St,'=('),write(St,Vh),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
         write(St,'\t\t\tp.variables['),write(St,Vh),write(St,'+voffset]=0;\n')),
     (T=v(Vt) ->
         (member(Vt,Used1a) -> true ; 
-            write(St,'\t\t\tvar'),write(St,Vt),write(St,'=('),write(St,Vt),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<3);\n'),
+            write(St,'\t\t\tvar'),write(St,Vt),write(St,'=('),write(St,Vt),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
             write(St,'\t\t\tp.variables['),write(St,Vt),write(St,'+voffset]=0;\n')),
         write(St,'\t\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,','),write(St,'var'),write(St,Vt),write(St,');\n')
     ; T=eol ->
@@ -210,7 +208,7 @@ compile_clause_body_args_prep_vars(St,v(V),Used1,Used2) :-
     (member(V,Used1) ->
         Used2=Used1
     ;   Used2=[V|Used1],
-        write(St,'\t\t\tvar'),write(St,V),write(St,'=('),write(St,V),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<3);\n'),
+        write(St,'\t\t\tvar'),write(St,V),write(St,'=('),write(St,V),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
         write(St,'\t\t\tp.variables['),write(St,V),write(St,'+voffset]=0;\n')).
         
 compile_clause_body_args_prep_vars(_,i(_),Used,Used).
@@ -219,7 +217,7 @@ compile_clause_body_args_prep_vars(St,list(H,T),Used1,Used3) :-
     compile_clause_body_args_prep_vars(St,H,Used1,Used2),
     compile_clause_body_args_prep_vars(St,T,Used2,Used3).
 
-compile_clause_get_expression(_,_,i(I),Name,UniqueId,UniqueId) :- atomics_to_string(['((',I,'<<3)+TAG_INTEGER)'],Name).
+compile_clause_get_expression(_,_,i(I),Name,UniqueId,UniqueId) :- atomics_to_string(['((',I,'<<TAG_WIDTH)+TAG_INTEGER)'],Name).
 compile_clause_get_expression(St,Label,v(V),Name,UniqueId1,UniqueId2) :-
     UniqueId2 is UniqueId1+1,
     write(St,'\t\t\tuint8_t tag_'),write(St,UniqueId1),write(St,'_var'),write(St,V),write(St,';\n'),

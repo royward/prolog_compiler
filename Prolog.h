@@ -85,9 +85,8 @@ public:
     uint32_t plcreate_list(uint32_t h, uint32_t t);
     std::string pldisplay(uint32_t x);
     void process_stack_state(FrameStore* fs);
-    void process_stack_state_save(FrameStore* fs);
+    FrameStore* process_stack_state_load_save(FrameStore* fs);
     void process_stack_state_save_aux(FrameStore* fs);
-    FrameStore* process_stack_state_load();
     FrameStore* process_stack_state_load_aux();
     void pop_frame_stack(FrameStore* fs);
     void unwind_stack_mark();

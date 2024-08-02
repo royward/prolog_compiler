@@ -1,7 +1,9 @@
-        .globl  _ZN6Prolog24process_stack_state_saveEP10FrameStore # -- Begin function Prolog::process_stack_state_save(FrameStore* fs)
+        .globl  _ZN6Prolog29process_stack_state_load_saveEP10FrameStore # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
         .p2align 4, 0x90
-        .type   _ZN6Prolog24process_stack_state_saveEP10FrameStore,@function
-_ZN6Prolog24process_stack_state_saveEP10FrameStore: # @Prolog::process_stack_state_save(FrameStore* fs)
+        .type   _ZN6Prolog29process_stack_state_load_saveEP10FrameStore,@function
+_ZN6Prolog29process_stack_state_load_saveEP10FrameStore: # @Prolog::process_stack_state_load_save(FrameStore* fs)
+        test   %rsi,%rsi
+        je     restore
         mov    %rcx,(%rsi)
         mov    %rdx,0x8(%rsi)
         mov    %rbx,0x10(%rsi)
@@ -15,12 +17,11 @@ _ZN6Prolog24process_stack_state_saveEP10FrameStore: # @Prolog::process_stack_sta
         mov    %r13,0x50(%rsi)
         mov    %r14,0x58(%rsi)
         mov    %r15,0x60(%rsi)
-        jmp    _ZN6Prolog28process_stack_state_save_auxEP10FrameStore
-
-        .globl  _ZN6Prolog24process_stack_state_loadEv # -- Begin function Prolog::process_stack_state_load()
-        .p2align 4, 0x90
-        .type   _ZN6Prolog24process_stack_state_loadEv,@function
-_ZN6Prolog24process_stack_state_loadEv: # @Prolog::process_stack_state_load()
+        mov    %rsi,%rbx
+        call    _ZN6Prolog28process_stack_state_save_auxEP10FrameStore
+        mov    %rbx,%rax
+        ret
+restore:
         call   _ZN6Prolog28process_stack_state_load_auxEv
         movzbl 0x98(%rax),%r8d
         test   %r8,%r8
