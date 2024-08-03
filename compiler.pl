@@ -4,7 +4,9 @@ compile(file("append.pl"),string("append([1,2],X,[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,[1],[2]).")).
 compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
-compile(file("nqueens.pl"),string("queens(4,Q).")).
+compile(file("nqueens.pl"),string("queens(1,Q).")).
+compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
+compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 */
 
 compile(RawProgram,RawGoal) :-
@@ -20,7 +22,6 @@ compile(RawProgram,RawGoal) :-
     maplist(write_function_template(St),Pdict),nl(St),
     maplist(write_frame_reference_template(St),Pdict,Program),nl(St),
     write(St,'void Prolog::__do_start() {\n'),
-    %write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     foldl(setup_args(St),Goal,0,_),
     write(St,'\tFrameStore& frame=frames[frame_count++];\n'),
     write(St,'\tframe.frame_index=0;\n'),
@@ -93,7 +94,7 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
     foldl(compile_clause(St,Pdict,LP),Predicate,0,_),
     (LP>1 -> write(St,'\t}\n') ; true),
-    (LP>1 -> write(St,'\tp.pop_frame_stack(fs);\n') ; true),
+    write(St,'\tp.pop_frame_stack(fs);\n'),
     write(St,'\tvoffset_new=voffset;\n'),
     write(St,'\tp.top_unwind_stack_decouple_mark--;\n'),
     write(St,'\treturn false;\n'),
@@ -102,8 +103,6 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
 compile_clause(St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t\tcase '),write(St,NClause),write(St,': {\n') ; true),
-    %(LP>1 -> write(St,'\t\t\tp.process_stack_state(&fs,true);\n') ; true),
-    %(NClause1=\=LP -> write(St,'\t\t\tfs->clause_index++;\n') ; true),
     write(St,'\t\t\tfs->clause_index++;\n'),
     length(Dict,LD),
     write(St,'\t\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
@@ -147,8 +146,6 @@ compile_clause_args1_aux2(St,Label,i(I),N,Used1,Used1) :-
     write(St,'\t\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
     write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER;\n'),
     write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
-%    compile_clause_args1_aux2(St,Label,i(I),N,Used1,Used2) :-
-%    write(St,'p.match_int('),write(St,I),write(St,arg),write(St,N),write(St,')\n').
 compile_clause_args1_aux2(St,Label,v(V),N,Used1,Used2) :-
     (member(V,Used1) ->
         Used2=Used1,
@@ -248,9 +245,6 @@ compile_clause_body(St,Label,_,function(test_neq,A1,A2),Used,Used,UniqueId1,Uniq
     write(St,'\t\t\tif('),write(St,Name1),write(St,'=='),write(St,Name2),write(St,') {goto fail_'),write(St,Label),write(St,';}\n').
 compile_clause_body(St,Label,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId1,UniqueId2),
-    %write(St,'\t\t\tuint8_t tag_'),write(St,UniqueId2),write(St,'_arg'),write(St,V),write(St,';\n'),
-    %write(St,'\t\t\tp.pointer_chase(tag_'),write(St,UniqueId2),write(St,'_arg'),write(St,V),write(St,',var'),write(St,V),write(St,');\n'),
-    %UniqueId3 is UniqueId2+1,
     (member(V,Used1) ->
         Used2=Used1,
         write(St,'\t\t\tif(!var'),write(St,V),write(St,'!='),write(St,Name2),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n')

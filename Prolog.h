@@ -37,7 +37,7 @@ struct FrameStore {
     int32_t clause_index;
     int32_t clause_count;
     uint32_t frame_index;
-    uint32_t top_unwind_stack_decouple_mark;
+    uint32_t frame_top_unwind_stack_decouple_mark;
     uint64_t* src;
     uint64_t* dst;
     uint8_t size;

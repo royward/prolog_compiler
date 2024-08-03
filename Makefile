@@ -1,7 +1,9 @@
 CXX:=clang++
 
+OPT:= -ggdb3
+
 debug:
-	@$(CXX) -ggdb3 -c -o Prolog.o Prolog.cpp
-	@$(CXX) -ggdb3 -c -o Prolog_process_stack_state.o Prolog_process_stack_state.s
-	@$(CXX) -ggdb3 -c -o PrologGenerated.o PrologGenerated.cpp
-	@$(CXX) -ggdb3 -o test Prolog.o PrologGenerated.o Prolog_process_stack_state.o
+	@$(CXX) $(OPT) -c -o Prolog.o Prolog.cpp
+	@$(CXX) $(OPT) -c -o Prolog_process_stack_state.o Prolog_process_stack_state.s
+	@$(CXX) $(OPT) -c -o PrologGenerated.o PrologGenerated.cpp
+	@$(CXX) $(OPT) -z noexecstack -o test Prolog.o PrologGenerated.o Prolog_process_stack_state.o

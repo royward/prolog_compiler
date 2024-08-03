@@ -20,6 +20,7 @@ _ZN6Prolog29process_stack_state_load_saveEP10FrameStore: # @Prolog::process_stac
         mov    %rsi,%rbx
         call    _ZN6Prolog28process_stack_state_save_auxEP10FrameStore
         mov    %rbx,%rax
+        mov    0x10(%rbx),%rbx # rbx is callee saved
         ret
 restore:
         call   _ZN6Prolog28process_stack_state_load_auxEv

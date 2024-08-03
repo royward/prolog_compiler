@@ -151,19 +151,20 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
     fs->stack_bottom=fs->store_sp;
     //uint64_t size=(fs->stack_top-fs->stack_bottom);
-    uint64_t size8=(base_sp-fs->stack_bottom)>>8;
+    uint64_t size8=(base_sp-fs->stack_bottom)>>3;
     uint64_t* dst=(uint64_t*)(&stack_storage[STACK_SIZES+fs->stack_bottom-base_sp]);
     uint64_t* src=(uint64_t*)fs->stack_bottom;
     for(uint32_t i=0;i<size8;i++) {
         dst[i]=src[i];
     }
-    fs->top_unwind_stack_decouple_mark=top_unwind_stack_decouple_mark;
+    fs->frame_top_unwind_stack_decouple_mark=top_unwind_stack_decouple_mark;
 }
 
 FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_count-1];
-    uint32_t bottom=unwind_stack_decouple_mark[fs_low->top_unwind_stack_decouple_mark-1];
+    top_unwind_stack_decouple_mark=fs_low->frame_top_unwind_stack_decouple_mark;
+    uint32_t bottom=unwind_stack_decouple_mark[top_unwind_stack_decouple_mark-1];
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
         variables[unwind_stack_decouple[i]]=0;
     }
@@ -171,54 +172,6 @@ FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     fs_low->src=(uint64_t*)(&stack_storage[STACK_SIZES+fs_low->stack_bottom-base_sp]);
     fs_low->size=(base_sp-fs_low->stack_bottom)>>3;
     return fs_low;
-}
-
-void __attribute__ ((noinline)) Prolog::process_stack_state(FrameStore* fs) {
-    if(fs) {
-        // first time through - store the data
-        asm("mov %%rcx, %0;" :"=r"(fs->store_cx));
-        asm("mov %%rdx, %0;" :"=r"(fs->store_dx));
-        asm("mov %%rbx, %0;" :"=r"(fs->store_bx));
-        asm("mov %%rsp, %0;" :"=r"(fs->store_sp));
-        asm("mov %%rbp, %0;" :"=r"(fs->store_bp));
-        asm("mov %%rsi, %0;" :"=r"(fs->store_si));
-        asm("mov %%rdi, %0;" :"=r"(fs->store_di));
-        asm("mov %%r8 , %0;" :"=r"(fs->store_8 ));
-        asm("mov %%r9 , %0;" :"=r"(fs->store_9 ));
-        asm("mov %%r12, %0;" :"=r"(fs->store_12));
-        asm("mov %%r13, %0;" :"=r"(fs->store_13));
-        asm("mov %%r14, %0;" :"=r"(fs->store_14));
-        asm("mov %%r15, %0;" :"=r"(fs->store_15));
-        process_stack_state_save_aux(fs);
-        return;
-    }
-    // Can't make a call here as messing up the stack, and can't use any outside code until complete
-    //uint32_t size8=(fs->stack_top-fs_low->stack_bottom)>>3;
-    FrameStore* fs_low=process_stack_state_load_aux();
-    uint64_t* src=fs_low->src;
-    uint64_t* dst=fs_low->dst;
-    uint32_t size8=fs_low->size;
-    for(uint32_t i=0;i<size8;i++) {
-        dst[i]=src[i];
-    }
-//     if(fs->clause_index+1>=fs->fri->count) {
-//         // last time through
-//         frame_count--;
-//     }
-    asm("mov %0, %%r15;" ::"r"(fs_low->store_15));
-    asm("mov %0, %%r14;" ::"r"(fs_low->store_14));
-    asm("mov %0, %%r13;" ::"r"(fs_low->store_13));
-    asm("mov %0, %%r12;" ::"r"(fs_low->store_12));
-    asm("mov %0, %%r9 ;" ::"r"(fs_low->store_9 ));
-    asm("mov %0, %%r8 ;" ::"r"(fs_low->store_8 ));
-    asm("mov %0, %%rdi;" ::"r"(fs_low->store_di));
-    asm("mov %0, %%rsi;" ::"r"(fs_low->store_si));
-    asm("mov %0, %%rbp;" ::"r"(fs_low->store_bp));
-    asm("mov %0, %%rsp;" ::"r"(fs_low->store_sp));
-    asm("mov %0, %%rbx;" ::"r"(fs_low->store_bx));
-    asm("mov %0, %%rdx;" ::"r"(fs_low->store_dx));
-    asm("mov %0, %%rcx;" ::"r"(fs_low->store_cx));
-    return;
 }
 
 void Prolog::unwind_stack_mark() {
