@@ -5,6 +5,10 @@ compile(file("append.pl"),string("append(X,[1],[2]).")).
 compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
 compile(file("nqueens.pl"),string("queens(1,Q).")).
+compile(file("nqueens.pl"),string("range(1,4,X).")).
+compile(file("nqueens.pl"),string("queens_aux([1],[],Q).")).
+compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
+compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
 compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 */
@@ -226,7 +230,7 @@ compile_clause_get_expression(St,Label,function(add,A1,A2),Name,UniqueId1,Unique
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used1,UniqueId1,UniqueId2) :-
+compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
     UniqueId2 is UniqueId1+1,
     nth0(Index,Pdict,f(Name,Arity)),
     write(St,'\t\t\t{\n'),
@@ -235,6 +239,7 @@ compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used1,UniqueId1,Uniqu
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.stack_top=fs->stack_bottom;\n'),
+    foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
     write(St,'\t\t\t\tif(!'),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
     maplist(compile_clause_body_args_with_comma(St),Args),
     write(St,', voffset_next, voffset_next, &frame'),write(St,UniqueId1),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'),
