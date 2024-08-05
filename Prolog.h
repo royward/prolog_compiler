@@ -5,7 +5,6 @@
 
 const static int64_t STACK_SIZES=1000000;
 
-static const uint8_t TAG_VREF_UNUNIFIED=0b000;
 static const uint8_t TAG_VREF=0b001;
 static const uint8_t TAG_LIST=0b010;
 static const uint8_t TAG_EOL=0b110;
@@ -19,28 +18,24 @@ struct FrameReferenceInfo {
 };
 
 struct FrameStore {
-    uint8_t* store_cx;
-    uint8_t* store_dx;
+    // Fields beyond here must not be altered as there are assembler offsets into them
     uint8_t* store_bx;
     uint8_t* store_sp;
     uint8_t* store_bp;
-    uint8_t* store_si;
-    uint8_t* store_di;
-    uint8_t* store_8;
-    uint8_t* store_9;
     uint8_t* store_12;
     uint8_t* store_13;
     uint8_t* store_14;
     uint8_t* store_15;
+    uint64_t* src;
+    uint64_t* dst;
+    uint32_t size;
+    // Fields up to here must not be altered as there are assembler offsets into them
     uint8_t* stack_bottom;
     uint8_t* stack_top;
     int32_t clause_index;
     int32_t clause_count;
     uint32_t frame_index;
     uint32_t frame_top_unwind_stack_decouple_mark;
-    uint64_t* src;
-    uint64_t* dst;
-    uint8_t size;
 };
 
 class List {
@@ -52,11 +47,6 @@ public:
 
 class Prolog {
 public:
-//     inline void pointer_chase(uint32_t& val, uint32_t voffset) {
-//         while((val&TAG_MASK)==TAG_VREF) {
-//             val=variables[(val>>TAG_WIDTH)+voffset];
-//         }
-//     }
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
         uint32_t v;
         while((val&TAG_MASK)==TAG_VREF && (v=variables[(val>>TAG_WIDTH)])!=0) {
@@ -64,11 +54,7 @@ public:
         }
         tag=(val&TAG_MASK);
     }
-    //bool unify(uint32_t val1, uint32_t voffset1, uint32_t val2, uint32_t voffset2);
     bool unify(uint32_t val1, uint32_t val2);
-    bool match_eol(uint32_t val);
-    bool match_int(uint32_t i,uint32_t val);
-    bool match_var(uint32_t v,uint32_t val, uint32_t voffset);
     inline uint32_t get_list_cell() {
         if(freelist_list==0) {
             return top_list_values++;

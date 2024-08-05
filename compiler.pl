@@ -11,6 +11,7 @@ compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
 compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
+compile(file("nqueens.pl"),string("queens(4,Q).")).
 */
 
 compile(RawProgram,RawGoal) :-

@@ -17,23 +17,6 @@ Tags in low bits - tags are not for that type, but for the type that it is point
 #include <sstream>
 #include <cstring>
 
-// bool Prolog::unify(uint32_t val1, uint32_t voffset1, uint32_t val2, uint32_t voffset2) {
-//     // First do any pointer chasing. There may be benefits to checking variable matching first
-//     pointer_chase(val1,voffset1);
-//     pointer_chase(val2,voffset2);
-//     uint8_t tag2=val2&TAG_MASK;
-//     uint8_t tag1=val1&TAG_MASK;
-//     if(tag2==TAG_VREF_UNUNIFIED) {
-//         variables[(val2>>TAG_WIDTH)+voffset2]=val1;
-//         return true;
-//     }
-//     if(tag1==TAG_VREF_UNUNIFIED) {
-//         variables[(val1>>TAG_WIDTH)+voffset1]=val2;
-//         return true;
-//     }
-//     return false;
-// }
-
 bool Prolog::unify(uint32_t val1, uint32_t val2) {
     // First do any pointer chasing. There may be benefits to checking variable matching first
     uint8_t tag1;
@@ -150,7 +133,6 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
 
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
     fs->stack_bottom=fs->store_sp;
-    //uint64_t size=(fs->stack_top-fs->stack_bottom);
     uint64_t size8=(base_sp-fs->stack_bottom)>>3;
     uint64_t* dst=(uint64_t*)(&stack_storage[STACK_SIZES+fs->stack_bottom-base_sp]);
     uint64_t* src=(uint64_t*)fs->stack_bottom;
