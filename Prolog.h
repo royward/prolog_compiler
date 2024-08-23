@@ -26,15 +26,15 @@ struct FrameStore {
     uint8_t* store_13;
     uint8_t* store_14;
     uint8_t* store_15;
-    uint64_t* src;
-    uint64_t* dst;
+    uint64_t* store;
+    uint64_t* live;
     uint32_t size;
+    int32_t clause_index;
     // Fields up to here must not be altered as there are assembler offsets into them
     uint8_t* stack_bottom;
-    uint8_t* stack_top;
-    int32_t clause_index;
+    //uint8_t* stack_top;
     int32_t clause_count;
-    uint32_t frame_index;
+    //uint32_t frame_index;
     uint32_t frame_top_unwind_stack_decouple_mark;
 };
 
@@ -88,7 +88,7 @@ public:
     uint32_t top_unwind_stack_decouple_mark=0;
     uint32_t top_unwind_stack_decouple=0;
     uint32_t frame_count=0;
-
+    uint32_t stack_used=0;
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t freelist_list=0;

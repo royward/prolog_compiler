@@ -85,8 +85,9 @@ std::string Prolog::pldisplay(uint32_t i) {
     return ss.str();
 }
 
-void Prolog::pop_frame_stack(FrameStore* fs) {
-    if(frame_count-1==fs->frame_index) {
+void Prolog::pop_frame_stack(FrameStore*/* fs*/) {
+    while(frame_count>0 && frames[frame_count-1].clause_index==frames[frame_count-1].clause_count) {
+        stack_used-=frames[frame_count-1].size;
         frame_count--;
     }
 }
@@ -133,9 +134,13 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
 
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
     fs->stack_bottom=fs->store_sp;
-    uint64_t size8=(base_sp-fs->stack_bottom)>>3;
-    uint64_t* dst=(uint64_t*)(&stack_storage[STACK_SIZES+fs->stack_bottom-base_sp]);
-    uint64_t* src=(uint64_t*)fs->stack_bottom;
+    fs->live=(uint64_t*)(fs->stack_bottom);
+    fs->store=(uint64_t*)(&stack_storage[STACK_SIZES-stack_used+fs->stack_bottom-base_sp]);
+    fs->size=(base_sp-fs->stack_bottom);
+    stack_used+=fs->size;
+    uint64_t size8=fs->size>>3;
+    uint64_t* dst=fs->store;
+    uint64_t* src=fs->live;
     for(uint32_t i=0;i<size8;i++) {
         dst[i]=src[i];
     }
@@ -150,9 +155,6 @@ FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
         variables[unwind_stack_decouple[i]]=0;
     }
-    fs_low->dst=(uint64_t*)(fs_low->stack_bottom);
-    fs_low->src=(uint64_t*)(&stack_storage[STACK_SIZES+fs_low->stack_bottom-base_sp]);
-    fs_low->size=(base_sp-fs_low->stack_bottom)>>3;
     return fs_low;
 }
 
