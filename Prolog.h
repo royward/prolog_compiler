@@ -36,7 +36,6 @@ struct FrameStore {
     int32_t clause_count;
     //uint32_t frame_index;
     uint32_t frame_top_unwind_stack_decouple_mark;
-    uint32_t
     uint32_t call_depth=0;
 };
 
@@ -85,9 +84,9 @@ public:
     FrameStore* frames=new FrameStore[1000];
     uint8_t* stack_storage=new uint8_t[STACK_SIZES];
     uint32_t* variables=new uint32_t[STACK_SIZES]();
-    //uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
+    uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
     uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
-    //uint32_t top_unwind_stack_decouple_mark=0;
+    uint32_t top_unwind_stack_decouple_mark=0;
     uint32_t top_unwind_stack_decouple=0;
     uint32_t frame_count=0;
     uint32_t stack_used=0;
