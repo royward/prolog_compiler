@@ -89,6 +89,7 @@ void Prolog::pop_frame_stack(FrameStore*/* fs*/) {
     while(frame_count>0 && frames[frame_count-1].clause_index==frames[frame_count-1].clause_count) {
         stack_used-=frames[frame_count-1].size;
         frame_count--;
+        std::cout << "=== popped continuation: " << frame_count << std::endl;
     }
 }
 

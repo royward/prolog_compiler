@@ -6,11 +6,11 @@ selectx(X,[Y|Ys],[Y|Zs]) :- selectx(X,Ys,Zs).
 
 queens(N,Qs) :- range(1,N,Ns),queens_aux(Ns,[],Qs).
 
+queens_aux([],Qs,Qs).
 queens_aux(UnplacedQs,SafeQs,Qs) :-
     selectx(Q,UnplacedQs,UnplacedQs1),
     not_attack(Q,1,SafeQs),
     queens_aux(UnplacedQs1,[Q|SafeQs],Qs).
-queens_aux([],Qs,Qs).
 
 not_attack(_A1,_A2,[]).
 not_attack(Q0,D0,[Q|Qs]) :-
