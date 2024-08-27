@@ -66,8 +66,6 @@ You can modify the file and query string as needed for different predicates. Her
 
 ```prolog
 % Sample queries
-nb_setval(trace_mode,1).
-
 compile(file("append.pl"),string("append([1,2],[3,4],X).")).
 compile(file("append.pl"),string("append([1,2],X,[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,[1],[2]).")).
