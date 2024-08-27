@@ -6,8 +6,8 @@ This guide provides instructions on setting up and using the Prolog compiler wit
 
 - SWI-Prolog
 - GNU Make
-- C++ Compiler (e.g., GCC or Clang)
-- Standard development tools (e.g., `gcc`, `make`)
+- GCC compatible C++ Compiler (clang++ or gcc++, clang++ generates faster code)
+- Standard development tools (e.g., `make`)
 
 ## Usage Guide
 
@@ -100,6 +100,31 @@ Once compiled, run the generated binary to see the output of your Prolog queries
 ```bash
 ./test
 ```
+
+### 7. Generating and Running a Debug Version
+
+If you want to use a debugger like gdb, or want to track down an error, it is possible to build and run a debug version:
+
+```bash
+make debug
+./test.debug
+```
+
+### 8. Tracing
+
+To generate an execution trace, just change:
+
+```
+trace_mode :- fail.
+```
+
+to
+
+```
+trace_mode.
+```
+
+on about line 147 of compiler.pl , then reload and rerun the transpiler, make the binary and run it.
 
 ### Common Issues
 
