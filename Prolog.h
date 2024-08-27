@@ -1,9 +1,38 @@
+// BSD 3-Clause License
+//
+// Copyright (c) 2024, Roy Ward
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this
+//    list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 #pragma once
 #include <cstdint>
 #include <iostream>
 #include <sstream>
 
-const static int64_t STACK_SIZES=10000000;
+const static int64_t STACK_SIZES=200000000;
 
 static const uint8_t TAG_VREF=0b001;
 static const uint8_t TAG_LIST=0b010;
@@ -26,8 +55,8 @@ struct FrameStore {
     uint8_t* store_13;
     uint8_t* store_14;
     uint8_t* store_15;
-    uint64_t* store;
-    uint64_t* live;
+    uint8_t* store;
+    uint8_t* live;
     uint32_t size;
     int32_t clause_index;
     // Fields up to here must not be altered as there are assembler offsets into them
@@ -83,7 +112,7 @@ public:
     //void add_to_unwind_stack(uint32_t v) {if(v==6)__asm__("int3"); unwind_stack_decouple[top_unwind_stack_decouple++]=v;};
     uint8_t* base_sp=0;
     FrameStore* frames=new FrameStore[1000];
-    uint8_t* stack_storage=new uint8_t[STACK_SIZES];
+    uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=new uint32_t[STACK_SIZES]();
     uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
     uint32_t top_unwind_stack_decouple=0;

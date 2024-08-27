@@ -1,7 +1,38 @@
+#include <immintrin.h>
+
 /*
 Data structures:
 uint32_t variables[]
 uint64_t list_values[]
+// BSD 3-Clause License
+//
+// Copyright (c) 2024, Roy Ward
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are met:
+//
+// 1. Redistributions of source code must retain the above copyright notice, this
+//    list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright notice,
+//    this list of conditions and the following disclaimer in the documentation
+//    and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the copyright holder nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 uint32_t unwind_stack_decouple[]
 uint32_t unwind_stack_delete[]
 Tags in low bits - tags are not for that type, but for the type that it is pointing to:
@@ -125,17 +156,28 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
     }
 }
 
+#ifdef USE_AVX
+#define SSE_ALIGN 0x1F
+#else
+#define SSE_ALIGN 0xF
+#endif
+
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
-    fs->stack_bottom=fs->store_sp;
-    fs->live=(uint64_t*)(fs->stack_bottom);
-    fs->store=(uint64_t*)(&stack_storage[STACK_SIZES-stack_used+fs->stack_bottom-base_sp]);
-    fs->size=(base_sp-fs->stack_bottom);
+    uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
+    fs->stack_bottom=(fs->store_sp-extra);
+    fs->live=(fs->stack_bottom);
+    fs->size=((base_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+    fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
     stack_used+=fs->size;
-    uint64_t size8=fs->size>>3;
-    uint64_t* dst=fs->store;
-    uint64_t* src=fs->live;
-    for(uint32_t i=0;i<size8;i++) {
-        dst[i]=src[i];
+    uint64_t size=fs->size;
+    uint8_t* dst=fs->store;
+    uint8_t* src=fs->live;
+    for(uint32_t i=0;i<size;i+=(SSE_ALIGN+1)) {
+#ifdef USE_AVX
+        _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
+#else
+       _mm_store_ps((float*)(dst+i),_mm_load_ps((float*)(src+i)));
+#endif
     }
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
 }
