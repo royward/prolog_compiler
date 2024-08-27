@@ -85,14 +85,6 @@ std::string Prolog::pldisplay(uint32_t i) {
     return ss.str();
 }
 
-void Prolog::pop_frame_stack(FrameStore*/* fs*/) {
-    while(frame_count>0 && frames[frame_count-1].clause_index==frames[frame_count-1].clause_count) {
-        stack_used-=frames[frame_count-1].size;
-        frame_count--;
-        std::cout << "=== popped continuation: " << frame_count << std::endl;
-    }
-}
-
 void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i) {
     uint8_t tag;
     pointer_chase(tag,i);
@@ -145,29 +137,41 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     for(uint32_t i=0;i<size8;i++) {
         dst[i]=src[i];
     }
-    fs->frame_top_unwind_stack_decouple_mark=top_unwind_stack_decouple_mark;
+    fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
 }
 
 FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_count-1];
-    top_unwind_stack_decouple_mark=fs_low->frame_top_unwind_stack_decouple_mark;
-    uint32_t bottom=unwind_stack_decouple_mark[top_unwind_stack_decouple_mark-1];
-    for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-        variables[unwind_stack_decouple[i]]=0;
+    if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
+        uint32_t bottom=fs_low->unwind_stack_decouple_mark;
+        for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
+            variables[unwind_stack_decouple[i]]=0;
+        }
     }
     return fs_low;
 }
 
-void Prolog::unwind_stack_mark() {
-    unwind_stack_decouple_mark[top_unwind_stack_decouple_mark++]=top_unwind_stack_decouple;
+void Prolog::pop_frame_stack(FrameStore*/* fs*/) {
+    while(frame_count>0 && frames[frame_count-1].clause_index==frames[frame_count-1].clause_count) {
+        stack_used-=frames[frame_count-1].size;
+        // if(frames[frame_count-1].call_depth!=0) {
+        //     std::cout << "=== popped continuation: " << frame_count << std::endl;
+        // }
+        frame_count--;
+    }
 }
 
-void Prolog::unwind_stack_revert_to_mark() {
-    uint32_t bottom=unwind_stack_decouple_mark[top_unwind_stack_decouple_mark-1];
+void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t call_depth) {
+    pop_frame_stack(nullptr);
+    if(frame_count>0 && call_depth<frames[frame_count-1].call_depth) {
+        //std::cout << "Prolog::unwind_stack_revert_to_mark" << std::endl;
+        process_stack_state_load_save(nullptr);
+    }
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
         variables[unwind_stack_decouple[i]]=0;
     }
+    top_unwind_stack_decouple=bottom;
 }
 
 int main() {

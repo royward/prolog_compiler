@@ -15,7 +15,7 @@ compile(file("nqueens.pl"),string("queens(4,Q).")).
 nb_setval(trace_mode,1).
 */
 
-trace_mode(1).
+trace_mode :- fail.
 
 compile(RawProgram,RawGoal) :-
     convert_program(RawProgram,Pdict,Program),
@@ -32,11 +32,9 @@ compile(RawProgram,RawGoal) :-
     write(St,'void Prolog::__do_start() {\n'),
     foldl(setup_args(St),Goal,0,_),
     write(St,'\tFrameStore& frame=frames[frame_count++];\n'),
-    %write(St,'\tframe.frame_index=0;\n'),
     write(St,'\tframe.clause_index=0;\n'),
-    (trace_mode(1) -> write(St,'\tframe.call_depth=1;\n') ; true),
+    write(St,'\tframe.call_depth=1;\n'),
     write(St,'\tframe.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
-    %write(St,'\tframe.stack_top=base_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
     write(St,'\twhile(frame_count>0) {\n'),
@@ -108,25 +106,24 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     write(St,'\tbool setup_bool=(fs->clause_index==0);\n'),
     write(St,'\tif(setup_bool) {\n'),
     compile_clause_args_pointer_chase(St,Arity,0),
-    write(St,'\t\tp.unwind_stack_mark();\n'),
     write(St,'\t}\n'),
-    (trace_mode(1) -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_count << std::endl; else std::cout << "=== loaded continuation " << p.frame_count << std::endl;\n') ; true),
+    (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_count << std::endl; else std::cout << "=== loaded continuation " << p.frame_count << std::endl;\n') ; true),
     write(St,'\tfs=p.process_stack_state_load_save(setup_bool?fs:nullptr);\n'),
-    (trace_mode(1) ->
-        write(St,'\t std::cout << fs->call_depth << \':\' << "'),write(St,Name),write(St,'/" << '),write(St,Arity),
+    (trace_mode ->
+        write(St,'\t std::cout << fs->call_depth << \':\' << ">'),write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << fs->clause_index << std::endl;\n')
     ; true),
     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
-    foldl(compile_clause(St,Pdict,LP),Predicate,0,_),
+    foldl(compile_clause(Name,Arity,St,Pdict,LP),Predicate,0,_),
     (LP>1 -> write(St,'\t}\n') ; true),
     write(St,'\tp.pop_frame_stack(fs);\n'),
     write(St,'\tvoffset_new=voffset;\n'),
-    write(St,'\tp.top_unwind_stack_decouple_mark--;\n'),
+    (trace_mode -> write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;') ; true),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
-compile_clause(St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
+compile_clause(Name,Arity,St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t\tcase '),write(St,NClause),write(St,': {\n') ; true),
     write(St,'\t\t\tfs->clause_index++;\n'),
@@ -139,9 +136,14 @@ compile_clause(St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
     fold2(compile_clause_body(St,Label,Pdict),Body,Used2,_,0,_),
     write(St,'\t\t\tvoffset_new=voffset_next;\n'),
     write(St,'\t\tp.pop_frame_stack(fs);\n'),
+    (trace_mode ->
+        write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,'"'),
+        write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
+        write(St,' << " c=" << fs->clause_index-1 << std::endl;\n')
+    ; true),
     write(St,'\t\t\treturn true;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
-    write(St,'\t\t\tp.unwind_stack_revert_to_mark();\n'),
+    write(St,'\t\t\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,fs->call_depth);\n'),
     (LP>1 -> write(St,'\t\t}\n') ; true).
 
 compile_clause_args_setup_vars(_,_,N,N).
@@ -166,13 +168,11 @@ compile_clause_args1_aux(St,Label,X,N,Used1,Used2) :-
 compile_clause_args1_aux2(St,Label,eol,N,Used1,Used1) :-
     write(St,'\t\t\tif(tag_'),write(St,N),write(St,'==TAG_EOL) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=TAG_EOL;\n'),
-    write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
+    write(St,'\t\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,TAG_EOL);\n').
 compile_clause_args1_aux2(St,Label,i(I),N,Used1,Used1) :-
     write(St,'\t\t\tif('),write(St,N),write(St,'==('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]=('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER;\n'),
-    write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'>>TAG_WIDTH;\n').
+    write(St,'\t\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,I),write(St,');\n').
 compile_clause_args1_aux2(St,Label,v(V),N,Used1,Used2) :-
     (member(V,Used1) ->
         Used2=Used1,
@@ -180,8 +180,7 @@ compile_clause_args1_aux2(St,Label,v(V),N,Used1,Used2) :-
     ;
         Used2=[V|Used1],
         write(St,'\t\t\tvar'),write(St,V),write(St,'='),write(St,N),write(St,';\n'),
-        write(St,'\t\t\tp.variables['),write(St,V),write(St,'+voffset]='),write(St,N),write(St,';\n'),
-        write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,V),write(St,'+voffset;\n')
+        write(St,'\t\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
     ).
 compile_clause_args1_aux2(St,Label,list(H,T),N,Used1,Used3) :-
     H=v(Vh),
@@ -211,8 +210,7 @@ compile_clause_args1_aux2(St,Label,list(H,T),N,Used1,Used3) :-
     ; T=eol ->
         write(St,'\t\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,',TAG_EOL);\n')
     ; false),
-    write(St,'\t\t\tp.variables['),write(St,N),write(St,'>>TAG_WIDTH]='),write(St,N),write(St,'lc;\n'),
-    write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,N),write(St,'lc>>TAG_WIDTH;\n'),
+    write(St,'\t\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
     write(St,'\t\t\t'),write(St,N),write(St,'='),write(St,N),write(St,'lc;\n'),
     write(St,'\t\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
@@ -258,11 +256,9 @@ compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used2,UniqueId1,Uniqu
     nth0(Index,Pdict,f(Name,Arity)),
     write(St,'\t\t\t{\n'),
     write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[p.frame_count++];\n'),
-    %write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.frame_index=fs->frame_index+1;\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
-    %write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.stack_top=fs->stack_bottom;\n'),
-    (trace_mode(1) -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
+    write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n'),
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
     write(St,'\t\t\t\tuint32_t local_frame_count=p.frame_count;\n'),
     write(St,'\t\t\t\tbool found=false;\n'),
@@ -285,6 +281,5 @@ compile_clause_body(St,Label,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,Un
     ;
         Used2=[V|Used1],
         write(St,'\t\t\tvar'),write(St,V),write(St,'='),write(St,Name2),write(St,';\n'),
-        write(St,'\t\t\tp.variables['),write(St,V),write(St,'+voffset]=var'),write(St,V),write(St,';\n'),
-        write(St,'\t\t\tp.unwind_stack_decouple[p.top_unwind_stack_decouple++]='),write(St,V),write(St,'+voffset;\n')
+        write(St,'\t\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,V),write(St,');\n')
     ).

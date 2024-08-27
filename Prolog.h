@@ -3,7 +3,7 @@
 #include <iostream>
 #include <sstream>
 
-const static int64_t STACK_SIZES=100000000;
+const static int64_t STACK_SIZES=10000000;
 
 static const uint8_t TAG_VREF=0b001;
 static const uint8_t TAG_LIST=0b010;
@@ -32,10 +32,8 @@ struct FrameStore {
     int32_t clause_index;
     // Fields up to here must not be altered as there are assembler offsets into them
     uint8_t* stack_bottom;
-    //uint8_t* stack_top;
     int32_t clause_count;
-    //uint32_t frame_index;
-    uint32_t frame_top_unwind_stack_decouple_mark;
+    uint32_t unwind_stack_decouple_mark;
     uint32_t call_depth=0;
 };
 
@@ -76,17 +74,18 @@ public:
     void process_stack_state_save_aux(FrameStore* fs);
     FrameStore* process_stack_state_load_aux();
     void pop_frame_stack(FrameStore* fs);
-    void unwind_stack_mark();
-    void unwind_stack_revert_to_mark();
+    void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
-
+    inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {
+        variables[v]=val;
+        unwind_stack_decouple[top_unwind_stack_decouple++]=v;
+    };
+    //void add_to_unwind_stack(uint32_t v) {if(v==6)__asm__("int3"); unwind_stack_decouple[top_unwind_stack_decouple++]=v;};
     uint8_t* base_sp=0;
     FrameStore* frames=new FrameStore[1000];
     uint8_t* stack_storage=new uint8_t[STACK_SIZES];
     uint32_t* variables=new uint32_t[STACK_SIZES]();
-    uint32_t* unwind_stack_decouple_mark=new uint32_t[STACK_SIZES];
     uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
-    uint32_t top_unwind_stack_decouple_mark=0;
     uint32_t top_unwind_stack_decouple=0;
     uint32_t frame_count=0;
     uint32_t stack_used=0;
