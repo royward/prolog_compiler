@@ -1,4 +1,4 @@
-# Prolog Compiler: A Proof of Concept for writing a prolog compiler
+# A Proof of Concept for writing a Prolog Compiler
 
 This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment. The compiler is designed to transpile Prolog code into C++ executables.
 
@@ -103,5 +103,4 @@ Once compiled, run the generated binary to see the output of your Prolog queries
 
 ### Common Issues
 
-- **Compatibility Warning:** Newer versions of SWI-Prolog may break compatibility with specific custom Prolog constructs like `dcg4pt`. Ensure compatibility by editing the `dcg4pt.pl` file as described above.
 - **Directory Requirements:** Ensure that your files are in the correct directory structure as expected by the SWI-Prolog `pack` system, or adjust your environment accordingly.
