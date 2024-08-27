@@ -1,4 +1,5 @@
-https://gist.github.com/rohit-nsit08/1183731
+// A version of nqueens written directly in C for speed comparison.
+// https://gist.github.com/rohit-nsit08/1183731
 
 #include<stdio.h>
 #include<stdlib.h>
