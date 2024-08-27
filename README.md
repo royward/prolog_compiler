@@ -6,7 +6,7 @@ This guide provides instructions on setting up and using the Prolog compiler wit
 
 - SWI-Prolog
 - GNU Make
-- GCC compatible C++ Compiler (clang++ or gcc++, clang++ generates faster code)
+- GCC compatible C++ Compiler: `clang++` (generates the fastest code) or `gcc++`
 - Standard development tools (e.g., `make`)
 
 ## Usage Guide
