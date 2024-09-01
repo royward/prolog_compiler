@@ -200,9 +200,9 @@ void Prolog::pop_frame_stack() {
     }
 }
 
-void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t call_depth) {
+void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {
     pop_frame_stack();
-    if(frame_count>1 && call_depth<frames[frame_count-1].call_depth) {
+    if(frame_count>1 && frame_depth<frame_count-1) {
         //std::cout << "Prolog::unwind_stack_revert_to_mark" << std::endl;
         process_stack_state_load_save(frame_count);
     }

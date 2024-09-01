@@ -63,7 +63,7 @@ struct FrameStore {
     uint8_t* stack_bottom;
     int32_t clause_count;
     uint32_t unwind_stack_decouple_mark;
-    uint32_t call_depth=0;
+    uint32_t call_depth;
 };
 
 class List {

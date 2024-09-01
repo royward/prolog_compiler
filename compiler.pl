@@ -70,7 +70,7 @@ compile(RawProgram,RawGoal) :-
 	write(St,'\tp.pop_frame_stack();\n'),
 	write(St,'\treturn true;\n'),
     write(St,'fail_lbl_setup:;\n'),
-	write(St,'\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,fs->call_depth);\n'),
+	write(St,'\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,1);\n'),
 	write(St,'\tp.pop_frame_stack();\n'),
 	write(St,'\treturn false;\n'),
     write(St,'}\n'),
@@ -79,7 +79,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\tframe_count=1;\n'),
     write(St,'\tFrameStore& frame=frames[frame_count++];\n'),
     write(St,'\tframe.clause_index=0;\n'),
-    write(St,'\tframe.call_depth=1;\n'),
+    (trace_mode -> write(St,'\tframe.call_depth=1;\n') ; true),
     write(St,'\tframe.clause_count=0;\n'),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
@@ -159,6 +159,7 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     compile_clause_args_pointer_chase(St,Arity,0),
     %write(St,'\t}\n'),
     (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_count << std::endl; else std::cout << "=== loaded continuation " << p.frame_count << std::endl;\n') ; true),
+    write(St,'\tuint32_t function_frame_count=p.frame_count;\n'),
     (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n')
         ; write(St,'\tfs->size=0;\n')),
     (trace_mode ->
@@ -194,7 +195,7 @@ compile_clause(Name,Arity,St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1)
     ; true),
     write(St,'\t\t\treturn true;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
-    write(St,'\t\t\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,fs->call_depth);\n'),
+    write(St,'\t\t\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,function_frame_count);\n'),
     (LP>1 -> write(St,'\t\t}\n') ; true).
 
 compile_clause_args_setup_vars(_,_,N,N).
@@ -309,7 +310,7 @@ compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used2,UniqueId1,Uniqu
     write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[p.frame_count++];\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
     write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
-    write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n'),
+    (trace_mode -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
     write(St,'\t\t\t\tuint32_t local_frame_count=p.frame_count;\n'),
     write(St,'\t\t\t\tbool found=false;\n'),
