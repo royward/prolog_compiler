@@ -49,7 +49,7 @@ trace_mode :- fail.
 compile(RawProgram,RawGoal) :-
     convert_program(RawProgram,Pdict,Program),
     convert_input(RawGoal,f(Name,Arity),Goal,InputDict),
-    get_index_dict(f(Name,Arity),_,Pdict,_,_),
+    get_index_dict(f(Name,Arity),InitClause,Pdict,_,_),
     length(InputDict,I1),
     open('PrologGenerated.cpp',write,St),
     write(St,'//////////////////////////////////////////////////////////////////////////////////////\n'),
@@ -59,18 +59,20 @@ compile(RawProgram,RawGoal) :-
     maplist(write_function_template(St),Pdict),nl(St),
     maplist(write_frame_reference_template(St),Pdict,Program),nl(St),
     write(St,'bool setup_continuation(Prolog& p'),
-    write_arg(St,', uint32_t arg',0,Arity),
+    write_arg(St,', uint32_t var',0,Arity),
     write(St,') {\n'),
+	write(St,'\tuint32_t voffset_next='),write(St,I1),write(St,';\n'),
 	write(St,'\tFrameStore* fs=&p.frames[p.frame_count-1];\n'),
-	write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
-	write(St,'\tuint32_t dummy;\n'),
-	write(St,'\tbool success='),
-	write(St,Name),write(St,'_'),write(St,Arity),
-	write(St,'(p'),
-    write_arg(St,',arg',0,Arity),
-    write(St,','),write(St,I1),write(St,',dummy);\n'),
+    range_noend(0,Arity,Vars),
+    maplist(vv,Vars,Vars2),
+    write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
+	compile_clause_body(St,'lbl_setup',Pdict,fcall(InitClause,Vars2),Vars,_,0,_),
 	write(St,'\tp.pop_frame_stack();\n'),
-	write(St,'\treturn success;\n'),
+	write(St,'\treturn true;\n'),
+    write(St,'fail_lbl_setup:;\n'),
+	write(St,'\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,fs->call_depth);\n'),
+	write(St,'\tp.pop_frame_stack();\n'),
+	write(St,'\treturn false;\n'),
     write(St,'}\n'),
     write(St,'void Prolog::__do_start() {\n'),
     foldl(setup_args(St),Goal,0,_),
@@ -78,7 +80,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\tFrameStore& frame=frames[frame_count++];\n'),
     write(St,'\tframe.clause_index=0;\n'),
     write(St,'\tframe.call_depth=1;\n'),
-    write(St,'\tframe.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
+    write(St,'\tframe.clause_count=0;\n'),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
     write(St,'\twhile(frame_count>1) {\n'),
@@ -93,6 +95,11 @@ compile(RawProgram,RawGoal) :-
     write(St,'}\n'),
     maplist(compile_predicate(St,Pdict),Pdict,Program),
     close(St).
+
+range_noend(M,M,[]).
+range_noend(M,N,[M|Ns]) :- M =\= N, M1 is M+1,range_noend(M1,N,Ns).
+
+vv(X,v(X)).
 
 do_output(St,InputName,N,N1) :-
     N1 is N+1,
