@@ -1,31 +1,31 @@
-# BSD 3-Clause License
-#
-# Copyright (c) 2024, Roy Ward
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-#    this list of conditions and the following disclaimer in the documentation
-#    and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its
-#    contributors may be used to endorse or promote products derived from
-#    this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+% BSD 3-Clause License
+%
+% Copyright (c) 2024, Roy Ward
+%
+% Redistribution and use in source and binary forms, with or without
+% modification, are permitted provided that the following conditions are met:
+%
+% 1. Redistributions of source code must retain the above copyright notice, this
+%    list of conditions and the following disclaimer.
+%
+% 2. Redistributions in binary form must reproduce the above copyright notice,
+%    this list of conditions and the following disclaimer in the documentation
+%    and/or other materials provided with the distribution.
+%
+% 3. Neither the name of the copyright holder nor the names of its
+%    contributors may be used to endorse or promote products derived from
+%    this software without specific prior written permission.
+%
+% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+% AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+% IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+% DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+% FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+% DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+% SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+% CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+% OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+% OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*
 compile(file("append.pl"),string("append([1,2],[3,4],X).")).
@@ -58,18 +58,33 @@ compile(RawProgram,RawGoal) :-
     write(St,'#include "Prolog.h"\n\n'),
     maplist(write_function_template(St),Pdict),nl(St),
     maplist(write_frame_reference_template(St),Pdict,Program),nl(St),
+    write(St,'bool setup_continuation(Prolog& p'),
+    write_arg(St,', uint32_t arg',0,Arity),
+    write(St,') {\n'),
+	write(St,'\tFrameStore* fs=&p.frames[p.frame_count-1];\n'),
+	write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
+	write(St,'\tuint32_t dummy;\n'),
+	write(St,'\tbool success='),
+	write(St,Name),write(St,'_'),write(St,Arity),
+	write(St,'(p'),
+    write_arg(St,',arg',0,Arity),
+    write(St,','),write(St,I1),write(St,',dummy);\n'),
+	write(St,'\tp.pop_frame_stack();\n'),
+	write(St,'\treturn success;\n'),
+    write(St,'}\n'),
     write(St,'void Prolog::__do_start() {\n'),
     foldl(setup_args(St),Goal,0,_),
+    write(St,'\tframe_count=1;\n'),
     write(St,'\tFrameStore& frame=frames[frame_count++];\n'),
     write(St,'\tframe.clause_index=0;\n'),
     write(St,'\tframe.call_depth=1;\n'),
     write(St,'\tframe.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
-    write(St,'\twhile(frame_count>0) {\n'),
-    write(St,'\t\tif('),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(*this'),
+    write(St,'\twhile(frame_count>1) {\n'),
+    write(St,'\t\tif(setup_continuation(*this'),
     write_arg(St,', goal_args',0,Arity),
-    write(St,', '),write(St,I1),write(St,', dummy, &frame)) {\n'),
+    write(St,')) {\n'),
     (InputDict=[] -> write(St,'\t\tstd::cout << "true." << std::endl;\n') ; foldl(do_output(St),InputDict,0,_)),
     write(St,'\t\t} else {\n'),
     write(St,'\t\t\tstd::cout << "false." << std::endl;\n'),
@@ -119,8 +134,7 @@ write_arg2(St,String1,String2,N,M) :-
 write_function_template(St,f(Name,Arity)) :-
     write(St,'bool '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
-    write(St,', uint32_t voffset, uint32_t& voffset_new, FrameStore* fs'),
-    write(St,');\n').
+    write(St,', uint32_t voffset, uint32_t& voffset_new);\n').
 
 write_frame_reference_template(St,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
@@ -130,14 +144,16 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
     nl(St),write(St,'bool '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
-    write(St,', uint32_t voffset, uint32_t& voffset_new, FrameStore* fs) {\n'),
+    write(St,', uint32_t voffset, uint32_t& voffset_new) {\n'),
+    write(St,'\tFrameStore* fs=&p.frames[p.frame_count-1];\n'),
     (Arity>0 -> write(St,'\tuint8_t tag_arg0'),compile_clause_args_setup_vars(St,', tag_arg',1,Arity),write(St,';\n') ; true),
-    write(St,'\tbool setup_bool=(fs->clause_index==0);\n'),
-    write(St,'\tif(setup_bool) {\n'),
+    %write(St,'\tbool setup_bool=(fs->clause_index==0);\n'),
+    %write(St,'\tif(setup_bool) {\n'),
     compile_clause_args_pointer_chase(St,Arity,0),
-    write(St,'\t}\n'),
+    %write(St,'\t}\n'),
     (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_count << std::endl; else std::cout << "=== loaded continuation " << p.frame_count << std::endl;\n') ; true),
-    write(St,'\tfs=p.process_stack_state_load_save(setup_bool?fs:nullptr);\n'),
+    (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n')
+        ; write(St,'\tfs->size=0;\n')),
     (trace_mode ->
         write(St,'\t std::cout << fs->call_depth << \':\' << ">'),write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
@@ -145,8 +161,7 @@ compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
     ; true),
     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
     foldl(compile_clause(Name,Arity,St,Pdict,LP),Predicate,0,_),
-    (LP>1 -> write(St,'\t}\n') ; true),
-    write(St,'\tp.pop_frame_stack(fs);\n'),
+    (LP>1 -> (write(St,'\t}\n'),write(St,'\tp.pop_frame_stack();\n')) ; true),
     write(St,'\tvoffset_new=voffset;\n'),
     (trace_mode -> write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;') ; true),
     write(St,'\treturn false;\n'),
@@ -164,7 +179,7 @@ compile_clause(Name,Arity,St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1)
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
     fold2(compile_clause_body(St,Label,Pdict),Body,Used2,_,0,_),
     write(St,'\t\t\tvoffset_new=voffset_next;\n'),
-    write(St,'\t\tp.pop_frame_stack(fs);\n'),
+    write(St,'\t\tp.pop_frame_stack();\n'),
     (trace_mode ->
         write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
@@ -182,7 +197,7 @@ compile_clause_args_pointer_chase(_,Arity,Arity).
 compile_clause_args_pointer_chase(St,Arity,N) :-
     N<Arity,
     N1 is N+1,
-    write(St,'\t\tp.pointer_chase(tag_arg'),write(St,N),write(St,',arg'),write(St,N),write(St,');\n'),
+    write(St,'\tp.pointer_chase(tag_arg'),write(St,N),write(St,',arg'),write(St,N),write(St,');\n'),
     compile_clause_args_pointer_chase(St,Arity,N1).    
 
 compile_clause_args1(St,Label,X,N,N1,Used1,Used2) :-
@@ -294,7 +309,7 @@ compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used2,UniqueId1,Uniqu
     write(St,'\t\t\t\twhile(p.frame_count>=local_frame_count && !found) {\n'),
     write(St,'\t\t\t\t\tfound='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
     maplist(compile_clause_body_args_with_comma(St),Args),
-    write(St,', voffset_next, voffset_next, &frame'),write(St,UniqueId1),write(St,');\n'),
+    write(St,', voffset_next, voffset_next);\n'),
     write(St,'\t\t\t\t}\n'),
     write(St,'\t\t\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'),
     write(St,'\t\t\t}\n').

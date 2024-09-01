@@ -77,7 +77,7 @@ class Prolog {
 public:
     // Fields beyond here must not be altered as there are assembler offsets into them
     FrameStore* frames=new FrameStore[1000];
-    uint32_t frame_count=0;
+    uint32_t frame_count;
     uint32_t frame_size=sizeof(FrameStore);
     // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
@@ -104,10 +104,10 @@ public:
     uint32_t plcreate_list(uint32_t h, uint32_t t);
     std::string pldisplay(uint32_t x);
     void process_stack_state(FrameStore* fs);
-    FrameStore* process_stack_state_load_save(FrameStore* fs);
+    FrameStore* process_stack_state_load_save(int flag);
     void process_stack_state_save_aux(FrameStore* fs);
     void process_stack_state_load_aux();
-    void pop_frame_stack(FrameStore* fs);
+    void pop_frame_stack();
     void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
     inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {

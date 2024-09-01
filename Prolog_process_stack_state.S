@@ -27,12 +27,19 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-.globl  _ZN6Prolog29process_stack_state_load_saveEP10FrameStore # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
+.globl  _ZN6Prolog29process_stack_state_load_saveEi # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
         .p2align 4, 0x90
-        .type   _ZN6Prolog29process_stack_state_load_saveEP10FrameStore,@function
-_ZN6Prolog29process_stack_state_load_saveEP10FrameStore: # @Prolog::process_stack_state_load_save(FrameStore* fs)
-        test   %rsi,%rsi
-        je     restore
+        .type   _ZN6Prolog29process_stack_state_load_saveEi,@function
+_ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
+        test   %esi,%esi
+        jne     restore
+        mov    0x8(%rdi),%eax # frame count
+        sub    $1,%eax
+        mov    0xC(%rdi),%edx # frame size
+        mul    %edx
+        mov    0x0(%rdi),%rdx
+        lea    0x0(%rdx,%rax),%rsi
+
         mov    %rbx,(%rsi)
         mov    %rsp,0x08(%rsi)
         mov    %rbp,0x10(%rsi)
