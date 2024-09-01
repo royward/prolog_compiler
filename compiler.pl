@@ -41,13 +41,13 @@ compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
 compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 compile(file("nqueens.pl"),string("queens(4,Q).")).
-nb_setval(trace_mode,1).
 */
 
 trace_mode :- fail.
 
 compile(RawProgram,RawGoal) :-
     convert_program(RawProgram,Pdict,Program),
+    maplist(length,Program,ClauseCounts),
     convert_input(RawGoal,f(Name,Arity),Goal,InputDict),
     get_index_dict(f(Name,Arity),InitClause,Pdict,_,_),
     length(InputDict,I1),
@@ -66,7 +66,7 @@ compile(RawProgram,RawGoal) :-
     range_noend(0,Arity,Vars),
     maplist(vv,Vars,Vars2),
     write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
-	compile_clause_body(St,'lbl_setup',Pdict,fcall(InitClause,Vars2),Vars,_,0,_),
+	compile_clause_body(St,'lbl_setup',Pdict,ClauseCounts,fcall(InitClause,Vars2),Vars,_,0,_),
 	write(St,'\tp.pop_frame_stack();\n'),
 	write(St,'\treturn true;\n'),
     write(St,'fail_lbl_setup:;\n'),
@@ -93,7 +93,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\t\t}\n'),
     write(St,'\t}\n'),
     write(St,'}\n'),
-    maplist(compile_predicate(St,Pdict),Pdict,Program),
+    maplist(compile_predicate(St,Pdict,ClauseCounts),Pdict,Program),
     close(St).
 
 range_noend(M,M,[]).
@@ -145,57 +145,59 @@ write_function_template(St,f(Name,Arity)) :-
 
 write_frame_reference_template(St,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
-    write(St,'static FrameReferenceInfo '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri('),write(St,LP),write(St,');\n').
+    (LP>1 -> (write(St,'static FrameReferenceInfo '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri('),write(St,LP),write(St,');\n')) ; true).
      
-compile_predicate(St,Pdict,f(Name,Arity),Predicate) :-
+compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
     nl(St),write(St,'bool '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
     write(St,', uint32_t voffset, uint32_t& voffset_new) {\n'),
-    write(St,'\tFrameStore* fs=&p.frames[p.frame_count-1];\n'),
+    (LP>1 -> write(St,'\tFrameStore* fs=&p.frames[p.frame_count-1];\n')
+        ; write(St,'\tuint32_t unwind_stack_decouple_mark=p.top_unwind_stack_decouple;\n')),
     (Arity>0 -> write(St,'\tuint8_t tag_arg0'),compile_clause_args_setup_vars(St,', tag_arg',1,Arity),write(St,';\n') ; true),
-    %write(St,'\tbool setup_bool=(fs->clause_index==0);\n'),
-    %write(St,'\tif(setup_bool) {\n'),
+    %write(St,'\tif(fs->clause_index==0) {\n'),
     compile_clause_args_pointer_chase(St,Arity,0),
     %write(St,'\t}\n'),
     (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_count << std::endl; else std::cout << "=== loaded continuation " << p.frame_count << std::endl;\n') ; true),
     write(St,'\tuint32_t function_frame_count=p.frame_count;\n'),
-    (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n')
-        ; write(St,'\tfs->size=0;\n')),
+    (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n') ; true),
     (trace_mode ->
         write(St,'\t std::cout << fs->call_depth << \':\' << ">'),write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << fs->clause_index << std::endl;\n')
     ; true),
     (LP>1 -> write(St,'\tswitch(fs->clause_index) {\n') ; true),
-    foldl(compile_clause(Name,Arity,St,Pdict,LP),Predicate,0,_),
+    foldl(compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP),Predicate,0,_),
     (LP>1 -> (write(St,'\t}\n'),write(St,'\tp.pop_frame_stack();\n')) ; true),
     write(St,'\tvoffset_new=voffset;\n'),
     (trace_mode -> write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;') ; true),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
-compile_clause(Name,Arity,St,Pdict,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
+compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t\tcase '),write(St,NClause),write(St,': {\n') ; true),
-    write(St,'\t\t\tfs->clause_index++;\n'),
+    (LP>1 -> write(St,'\t\t\tfs->clause_index++;\n') ; true),
     length(Dict,LD),
     write(St,'\t\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
     (LD>0 -> write(St,'\t\t\tuint32_t var0'),compile_clause_args_setup_vars(St,', var',1,LD),write(St,';\n') ; true),
     atomics_to_string(['label_c',NClause],Label),
     fold2(compile_clause_args1(St,Label),Args,0,_,[],Used1),
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
-    fold2(compile_clause_body(St,Label,Pdict),Body,Used2,_,0,_),
+    fold2(compile_clause_body(St,Label,Pdict,ClauseCounts),Body,Used2,_,0,_),
     write(St,'\t\t\tvoffset_new=voffset_next;\n'),
-    write(St,'\t\tp.pop_frame_stack();\n'),
+    (LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
     (trace_mode ->
-        write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,'"'),
+        (LP>1 -> write(St,'\t std::cout << fs->call_depth << \':\' << "<') ; true),
+        write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << fs->clause_index-1 << std::endl;\n')
     ; true),
     write(St,'\t\t\treturn true;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
-    write(St,'\t\t\tp.unwind_stack_revert_to_mark(fs->unwind_stack_decouple_mark,function_frame_count);\n'),
+    write(St,'\t\t\tp.unwind_stack_revert_to_mark('),
+    (LP>1 -> write(St,'fs->') ; true),
+    write(St,'unwind_stack_decouple_mark,function_frame_count);\n'),
     (LP>1 -> write(St,'\t\t}\n') ; true).
 
 compile_clause_args_setup_vars(_,_,N,N).
@@ -303,29 +305,37 @@ compile_clause_get_expression(St,Label,function(add,A1,A2),Name,UniqueId1,Unique
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-compile_clause_body(St,Label,Pdict,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
-    UniqueId2 is UniqueId1+1,
+compile_clause_body(St,Label,Pdict,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
     nth0(Index,Pdict,f(Name,Arity)),
-    write(St,'\t\t\t{\n'),
-    write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[p.frame_count++];\n'),
-    write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
-    write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
-    (trace_mode -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
-    foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
-    write(St,'\t\t\t\tuint32_t local_frame_count=p.frame_count;\n'),
-    write(St,'\t\t\t\tbool found=false;\n'),
-    write(St,'\t\t\t\twhile(p.frame_count>=local_frame_count && !found) {\n'),
-    write(St,'\t\t\t\t\tfound='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
-    maplist(compile_clause_body_args_with_comma(St),Args),
-    write(St,', voffset_next, voffset_next);\n'),
-    write(St,'\t\t\t\t}\n'),
-    write(St,'\t\t\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\t\t}\n').
-compile_clause_body(St,Label,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
+    nth0(Index,ClauseCounts,ClauseCountThis),
+    (ClauseCountThis>1 ->
+        (UniqueId2 is UniqueId1+1,
+        write(St,'\t\t\t{\n'),
+        write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[p.frame_count++];\n'),
+        write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
+        write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
+        (trace_mode -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
+        foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
+        write(St,'\t\t\t\tuint32_t local_frame_count=p.frame_count;\n'),
+        write(St,'\t\t\t\tbool found=false;\n'),
+        write(St,'\t\t\t\twhile(p.frame_count>=local_frame_count && !found) {\n'),
+        write(St,'\t\t\t\t\tfound='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
+        maplist(compile_clause_body_args_with_comma(St),Args),
+        write(St,', voffset_next, voffset_next);\n'),
+        write(St,'\t\t\t\t}\n'),
+        write(St,'\t\t\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'),
+        write(St,'\t\t\t}\n'))
+    ;   (UniqueId2=UniqueId1,
+        foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
+        write(St,'\t\t\tif(!'),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
+        maplist(compile_clause_body_args_with_comma(St),Args),
+        write(St,', voffset_next, voffset_next)) {goto fail_'),write(St,Label),write(St,';}\n'))
+    ).
+compile_clause_body(St,Label,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
     compile_clause_get_expression(St,Label,A1,Name1,UniqueId1,UniqueId2),
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     write(St,'\t\t\tif('),write(St,Name1),write(St,'=='),write(St,Name2),write(St,') {goto fail_'),write(St,Label),write(St,';}\n').
-compile_clause_body(St,Label,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
+compile_clause_body(St,Label,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId1,UniqueId2),
     (member(V,Used1) ->
         Used2=Used1,
