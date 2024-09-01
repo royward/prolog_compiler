@@ -182,7 +182,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
 }
 
-FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
+void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_count-1];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
@@ -191,7 +191,6 @@ FrameStore* __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
             variables[unwind_stack_decouple[i]]=0;
         }
     }
-    return fs_low;
 }
 
 void Prolog::pop_frame_stack(FrameStore*/* fs*/) {

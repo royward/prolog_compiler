@@ -75,6 +75,11 @@ public:
 
 class Prolog {
 public:
+    // Fields beyond here must not be altered as there are assembler offsets into them
+    FrameStore* frames=new FrameStore[1000];
+    uint32_t frame_count=0;
+    uint32_t frame_size=sizeof(FrameStore);
+    // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
         uint32_t v;
         while((val&TAG_MASK)==TAG_VREF && (v=variables[(val>>TAG_WIDTH)])!=0) {
@@ -101,7 +106,7 @@ public:
     void process_stack_state(FrameStore* fs);
     FrameStore* process_stack_state_load_save(FrameStore* fs);
     void process_stack_state_save_aux(FrameStore* fs);
-    FrameStore* process_stack_state_load_aux();
+    void process_stack_state_load_aux();
     void pop_frame_stack(FrameStore* fs);
     void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
@@ -111,12 +116,10 @@ public:
     };
     //void add_to_unwind_stack(uint32_t v) {if(v==6)__asm__("int3"); unwind_stack_decouple[top_unwind_stack_decouple++]=v;};
     uint8_t* base_sp=0;
-    FrameStore* frames=new FrameStore[1000];
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=new uint32_t[STACK_SIZES]();
     uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
     uint32_t top_unwind_stack_decouple=0;
-    uint32_t frame_count=0;
     uint32_t stack_used=0;
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop

@@ -33,8 +33,6 @@
 _ZN6Prolog29process_stack_state_load_saveEP10FrameStore: # @Prolog::process_stack_state_load_save(FrameStore* fs)
         test   %rsi,%rsi
         je     restore
-        #cmpl   $0,0x4C(%rsi)
-        #jne    restore
         mov    %rbx,(%rsi)
         mov    %rsp,0x08(%rsi)
         mov    %rbp,0x10(%rsi)
@@ -48,7 +46,14 @@ _ZN6Prolog29process_stack_state_load_saveEP10FrameStore: # @Prolog::process_stac
         mov    (%rbx),%rbx # rbx is callee saved
         ret
 restore:
-        call   _ZN6Prolog28process_stack_state_load_auxEv
+        mov    %rdi,%rbx # save 'this'. going to need it later
+        call   _ZN6Prolog28process_stack_state_load_auxEv #ignore the result for now
+        mov    0x8(%rbx),%eax # frame count
+        sub    $1,%eax
+        mov    0xC(%rbx),%edx # frame size
+        mul    %edx
+        mov    0x0(%rbx),%rdx
+        lea    0x0(%rdx,%rax),%rax
         mov    0x48(%rax),%r8 #fs->size
         test   %r8,%r8
         je     copy_to_stack_noloop
