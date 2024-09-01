@@ -34,7 +34,7 @@ _ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load
         test   %esi,%esi
         jne     restore
         mov    0x8(%rdi),%eax # frame count
-        sub    $1,%eax
+        #sub    $1,%eax
         mov    0xC(%rdi),%edx # frame size
         mul    %edx
         mov    0x0(%rdi),%rdx
@@ -56,7 +56,7 @@ restore:
         mov    %rdi,%rbx # save 'this'. going to need it later
         call   _ZN6Prolog28process_stack_state_load_auxEv #ignore the result for now
         mov    0x8(%rbx),%eax # frame count
-        sub    $1,%eax
+        #sub    $1,%eax
         mov    0xC(%rbx),%edx # frame size
         mul    %edx
         mov    0x0(%rbx),%rdx

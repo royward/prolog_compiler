@@ -59,9 +59,10 @@ struct FrameStore {
     uint8_t* live;
     uint32_t size;
     int32_t clause_index;
+    uint32_t parent_frame;
     // Fields up to here must not be altered as there are assembler offsets into them
-    uint8_t* stack_bottom;
     int32_t clause_count;
+    uint8_t* stack_bottom;
     uint32_t unwind_stack_decouple_mark;
     uint32_t call_depth;
 };
@@ -79,6 +80,7 @@ public:
     FrameStore* frames=new FrameStore[1000];
     uint32_t frame_count;
     uint32_t frame_size=sizeof(FrameStore);
+    uint8_t* scratch_buf=(uint8_t*)malloc(0x10000);
     // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
         uint32_t v;

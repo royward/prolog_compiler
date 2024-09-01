@@ -172,6 +172,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     uint64_t size=fs->size;
     uint8_t* dst=fs->store;
     uint8_t* src=fs->live;
+    //std::cout << size << std::endl;
     for(uint32_t i=0;i<size;i+=(SSE_ALIGN+1)) {
 #ifdef USE_AVX
         _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
@@ -184,7 +185,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
 
 void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
-    FrameStore* fs_low=&frames[frame_count-1];
+    FrameStore* fs_low=&frames[frame_count];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
         uint32_t bottom=fs_low->unwind_stack_decouple_mark;
         for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
@@ -194,15 +195,15 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
 }
 
 void Prolog::pop_frame_stack() {
-    while(frame_count>1 && frames[frame_count-1].clause_index==frames[frame_count-1].clause_count) {
-        stack_used-=frames[frame_count-1].size;
+    while(frame_count>0 && frames[frame_count].clause_index==frames[frame_count].clause_count) {
+        stack_used-=frames[frame_count].size;
         frame_count--;
     }
 }
 
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {
     pop_frame_stack();
-    if(frame_count>1 && frame_depth<frame_count-1) {
+    if(frame_count>0 && frame_depth<frame_count-1) {
         //std::cout << "Prolog::unwind_stack_revert_to_mark" << std::endl;
         process_stack_state_load_save(frame_count);
     }
