@@ -185,7 +185,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
 
 void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
-    FrameStore* fs_low=&frames[frame_count];
+    FrameStore* fs_low=&frames[frame_top];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
         uint32_t bottom=fs_low->unwind_stack_decouple_mark;
         for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
@@ -195,17 +195,17 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
 }
 
 void Prolog::pop_frame_stack() {
-    while(frame_count>0 && frames[frame_count].clause_index==frames[frame_count].clause_count) {
-        stack_used-=frames[frame_count].size;
-        frame_count--;
+    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
+        stack_used-=frames[frame_top].size;
+        frame_top--;
     }
 }
 
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {
     pop_frame_stack();
-    if(frame_count>0 && frame_depth<frame_count-1) {
+    if(frame_top>0 && frame_depth<frame_top-1) {
         //std::cout << "Prolog::unwind_stack_revert_to_mark" << std::endl;
-        process_stack_state_load_save(frame_count);
+        process_stack_state_load_save(frame_top);
     }
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
         variables[unwind_stack_decouple[i]]=0;

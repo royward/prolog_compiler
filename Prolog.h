@@ -78,7 +78,7 @@ class Prolog {
 public:
     // Fields beyond here must not be altered as there are assembler offsets into them
     FrameStore* frames=new FrameStore[1000];
-    uint32_t frame_count;
+    uint32_t frame_top;
     uint32_t frame_size=sizeof(FrameStore);
     uint8_t* scratch_buf=(uint8_t*)malloc(0x10000);
     // Fields up to here must not be altered as there are assembler offsets into them
