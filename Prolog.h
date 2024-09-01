@@ -69,7 +69,6 @@ struct FrameStore {
 
 class List {
 public:
-    
     uint32_t head;
     uint32_t tail;
 };
@@ -80,7 +79,7 @@ public:
     FrameStore* frames=new FrameStore[1000];
     uint32_t frame_top;
     uint32_t frame_size=sizeof(FrameStore);
-    uint8_t* scratch_buf=(uint8_t*)malloc(0x10000);
+    uint32_t* scratch_buf=(uint32_t*)malloc(0x40000);
     // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
         uint32_t v;
@@ -126,5 +125,6 @@ public:
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t freelist_list=0;
+    uint32_t function_frame_top_last_n_clause;
     List* list_values=new List[STACK_SIZES];
 };

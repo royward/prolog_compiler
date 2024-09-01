@@ -66,7 +66,8 @@ compile(RawProgram,RawGoal) :-
     range_noend(0,Arity,Vars),
     maplist(vv,Vars,Vars2),
     write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
-	compile_clause_body(St,'lbl_setup',Pdict,ClauseCounts,fcall(InitClause,Vars2),Vars,_,0,_),
+    write(St,'\tuint32_t function_frame_top=p.frame_top;\n'),
+	compile_clause_body(St,'lbl_setup',Pdict,2,ClauseCounts,fcall(InitClause,Vars2),Vars,_,0,_),
 	write(St,'\tp.pop_frame_stack();\n'),
 	write(St,'\treturn true;\n'),
     write(St,'fail_lbl_setup:;\n'),
@@ -76,11 +77,12 @@ compile(RawProgram,RawGoal) :-
     write(St,'}\n\n'),
     write(St,'void Prolog::__do_start() {\n'),
     foldl(setup_args(St),Goal,0,_),
-    write(St,'\tframe_top=1;\n'),
+    write(St,'\tframe_top=0;\n'),
     write(St,'\tFrameStore& frame=frames[++frame_top];\n'),
     write(St,'\tframe.clause_index=0;\n'),
-    (trace_mode -> write(St,'\tframe.call_depth=1;\n') ; true),
     write(St,'\tframe.clause_count=0;\n'),
+    write(St,'\tframe.parent_frame=0;\n'),
+    (trace_mode -> write(St,'\tframe.call_depth=1;\n') ; true),
     write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
     write(St,'\twhile(frame_top>0) {\n'),
@@ -159,7 +161,8 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     compile_clause_args_pointer_chase(St,Arity,0),
     %write(St,'\t}\n'),
     (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_top << std::endl; else std::cout << "=== loaded continuation " << p.frame_top << std::endl;\n') ; true),
-    write(St,'\tuint32_t function_frame_top=p.frame_top;\n'),
+    write(St,'\tuint32_t function_frame_top='),
+    (LP>1 -> write(St,'p.frame_top;\n') ; write(St,'p.function_frame_top_last_n_clause;\n')),
     (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n') ; true),
     (trace_mode ->
         write(St,'\t std::cout << fs->call_depth << \':\' << ">'),write(St,Name),write(St,'"'),
@@ -184,7 +187,7 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NCla
     atomics_to_string(['label_c',NClause],Label),
     fold2(compile_clause_args1(St,Label),Args,0,_,[],Used1),
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
-    fold2(compile_clause_body(St,Label,Pdict,ClauseCounts),Body,Used2,_,0,_),
+    fold2(compile_clause_body(St,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_),
     write(St,'\t\t\tvoffset_new=voffset_next;\n'),
     (LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
     (trace_mode ->
@@ -305,7 +308,7 @@ compile_clause_get_expression(St,Label,function(add,A1,A2),Name,UniqueId1,Unique
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-compile_clause_body(St,Label,Pdict,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
+compile_clause_body(St,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
     nth0(Index,Pdict,f(Name,Arity)),
     nth0(Index,ClauseCounts,ClauseCountThis),
     (ClauseCountThis>1 ->
@@ -314,6 +317,7 @@ compile_clause_body(St,Label,Pdict,ClauseCounts,fcall(Index,Args),Used1,Used2,Un
         write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[++p.frame_top];\n'),
         write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
         write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
+        write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.parent_frame=function_frame_top;\n'),
         (trace_mode -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
         foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
         write(St,'\t\t\t\tuint32_t local_frame_top=p.frame_top;\n'),
@@ -326,16 +330,17 @@ compile_clause_body(St,Label,Pdict,ClauseCounts,fcall(Index,Args),Used1,Used2,Un
         write(St,'\t\t\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'),
         write(St,'\t\t\t}\n'))
     ;   (UniqueId2=UniqueId1,
+        (LP>1 -> write(St,'\t\t\tp.function_frame_top_last_n_clause=function_frame_top;\n') ; true),
         foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
         write(St,'\t\t\tif(!'),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St),Args),
         write(St,', voffset_next, voffset_next)) {goto fail_'),write(St,Label),write(St,';}\n'))
     ).
-compile_clause_body(St,Label,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
+compile_clause_body(St,Label,_,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
     compile_clause_get_expression(St,Label,A1,Name1,UniqueId1,UniqueId2),
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     write(St,'\t\t\tif('),write(St,Name1),write(St,'=='),write(St,Name2),write(St,') {goto fail_'),write(St,Label),write(St,';}\n').
-compile_clause_body(St,Label,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
+compile_clause_body(St,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId1,UniqueId2),
     (member(V,Used1) ->
         Used2=Used1,
