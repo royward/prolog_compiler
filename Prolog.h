@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <cstdio>
 
 const static int64_t STACK_SIZES=200000000;
 
@@ -107,8 +108,9 @@ public:
     void process_stack_state(FrameStore* fs);
     FrameStore* process_stack_state_load_save(int flag);
     void process_stack_state_save_aux(FrameStore* fs);
-    void process_stack_state_load_aux();
+    uint32_t process_stack_state_load_aux(uint32_t parent);
     void pop_frame_stack();
+    uint32_t pop_frame_stack_track_parent();
     void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
     inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {

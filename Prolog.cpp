@@ -1,4 +1,5 @@
 #include <immintrin.h>
+#include <cstdio>
 
 /*
 Data structures:
@@ -47,6 +48,8 @@ Tags in low bits - tags are not for that type, but for the type that it is point
 #include "Prolog.h"
 #include <sstream>
 #include <cstring>
+
+//#define TRACE 1
 
 bool Prolog::unify(uint32_t val1, uint32_t val2) {
     // First do any pointer chasing. There may be benefits to checking variable matching first
@@ -162,11 +165,18 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
 #define SSE_ALIGN 0xF
 #endif
 
+#ifdef __OPTIMIZE__
+const static uint64_t SP_BUFFER=48;
+#else
+const static uint64_t SP_BUFFER=128;
+#endif
+
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
     uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
     fs->stack_bottom=(fs->store_sp-extra);
     fs->live=(fs->stack_bottom);
-    fs->size=((base_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+    uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
+    fs->size=((top_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
     fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
     stack_used+=fs->size;
     uint64_t size=fs->size;
@@ -183,7 +193,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
 }
 
-void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
+uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_t parent) {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_top];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
@@ -192,13 +202,45 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
             variables[unwind_stack_decouple[i]]=0;
         }
     }
+    uint32_t frame_count=0;
+    scratch_buf[frame_count++]=frame_top;
+    while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
+        scratch_buf[frame_count++]=fs_low->parent_frame;
+        fs_low=&frames[fs_low->parent_frame];
+    }
+#if TRACE
+    printf("%d  ",parent);
+    for(int32_t i=frame_count-1;i>=0;i--) {
+        printf(",%d",scratch_buf[i]);
+    }
+    printf("\n");
+#endif
+    return frame_count-1;
 }
 
 void Prolog::pop_frame_stack() {
     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
         stack_used-=frames[frame_top].size;
+#if TRACE
+        printf(" -%d\n",frame_top);
+#endif
         frame_top--;
     }
+}
+
+uint32_t Prolog::pop_frame_stack_track_parent() {
+    uint32_t id=frame_top;
+    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
+        if(id==frame_top) {
+            id=frames[frame_top].parent_frame;
+        }
+        stack_used-=frames[frame_top].size;
+#if TRACE
+        printf(" -%d\n",frame_top);
+#endif
+        frame_top--;
+    }
+    return id;
 }
 
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {

@@ -65,8 +65,8 @@ compile(RawProgram,RawGoal) :-
 	write(St,'\tFrameStore* fs=&p.frames[p.frame_top];\n'),
     range_noend(0,Arity,Vars),
     maplist(vv,Vars,Vars2),
-    write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n'),
     write(St,'\tuint32_t function_frame_top=p.frame_top;\n'),
+    write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0?function_frame_top:0);\n'),
 	compile_clause_body(St,'lbl_setup',Pdict,2,ClauseCounts,fcall(InitClause,Vars2),Vars,_,0,_),
 	write(St,'\tp.pop_frame_stack();\n'),
 	write(St,'\treturn true;\n'),
@@ -83,7 +83,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\tframe.clause_count=0;\n'),
     write(St,'\tframe.parent_frame=0;\n'),
     (trace_mode -> write(St,'\tframe.call_depth=1;\n') ; true),
-    write(St,'\tbase_sp=(uint8_t*)__builtin_frame_address(0);\n'),
+    write(St,'\tframes[0].store_sp=base_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t dummy;\n'),
     write(St,'\twhile(frame_top>0) {\n'),
     write(St,'\t\tif(setup_continuation(*this'),
@@ -160,11 +160,11 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     %write(St,'\tif(fs->clause_index==0) {\n'),
     compile_clause_args_pointer_chase(St,Arity,0),
     %write(St,'\t}\n'),
-    (trace_mode -> write(St,'if(setup_bool) std::cout << "=== saved continuation " << p.frame_top << std::endl; else std::cout << "=== loaded continuation " << p.frame_top << std::endl;\n') ; true),
+    (trace_mode,LP>1 -> write(St,'if(fs->clause_index!=0) std::cout << "=== saved continuation " << p.frame_top << std::endl; else std::cout << "=== loaded continuation " << p.frame_top << std::endl;\n') ; true),
     write(St,'\tuint32_t function_frame_top='),
     (LP>1 -> write(St,'p.frame_top;\n') ; write(St,'p.function_frame_top_last_n_clause;\n')),
-    (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0);\n') ; true),
-    (trace_mode ->
+    (LP>1 -> write(St,'\tfs=p.process_stack_state_load_save(fs->clause_index!=0?function_frame_top:0);\n') ; true),
+    (trace_mode,LP>1 ->
         write(St,'\t std::cout << fs->call_depth << \':\' << ">'),write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << fs->clause_index << std::endl;\n')
@@ -173,7 +173,7 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     foldl(compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP),Predicate,0,_),
     (LP>1 -> (write(St,'\t}\n'),write(St,'\tp.pop_frame_stack();\n')) ; true),
     write(St,'\tvoffset_new=voffset;\n'),
-    (trace_mode -> write(St,'\t std::cout << fs->call_depth << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;') ; true),
+    (trace_mode -> write(St,'\t std::cout << '),(LP>1 -> write(St,'fs->call_depth') ; write(St,'0')),write(St,' << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;') ; true),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
@@ -181,6 +181,8 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NCla
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t\tcase '),write(St,NClause),write(St,': {\n') ; true),
     (LP>1 -> write(St,'\t\t\tfs->clause_index++;\n') ; true),
+    %(NClause1=LP,LP>1 -> write(St,'\t\t\tuint32_t unwind_stack_decouple_mark=fs->unwind_stack_decouple_mark;\n') ; true),
+    %(NClause1=LP,LP>1 -> write(St,'\t\t\tp.pop_frame_stack();\n') ; true),
     length(Dict,LD),
     write(St,'\t\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
     (LD>0 -> write(St,'\t\t\tuint32_t var0'),compile_clause_args_setup_vars(St,', var',1,LD),write(St,';\n') ; true),
@@ -189,9 +191,9 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NCla
     foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
     fold2(compile_clause_body(St,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_),
     write(St,'\t\t\tvoffset_new=voffset_next;\n'),
-    (LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
-    (trace_mode ->
-        write(St,'\t std::cout << fs->call_depth << \':\' << "<'),
+    %(NClause1=LP,LP>1 -> write(St,'\t\t\tp.pop_frame_stack();\n') ; true),
+    (trace_mode,LP>1 ->
+        write(St,'\t std::cout << '),(LP>1 -> write(St,'fs->call_depth') ; write(St,'0')),write(St,' << \':\' << "<'),
         write(St,Name),write(St,'"'),
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << fs->clause_index-1 << std::endl;\n')
@@ -315,10 +317,14 @@ compile_clause_body(St,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2
         (UniqueId2 is UniqueId1+1,
         write(St,'\t\t\t{\n'),
         write(St,'\t\t\t\tFrameStore& frame'),write(St,UniqueId1),write(St,'=p.frames[++p.frame_top];\n'),
+        %write(St,'\t\t\t\tprintf(\" +%d\\n\",p.frame_top);\n'),
         write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_index=0;\n'),
         write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.clause_count='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'_fri.count;\n'),
         write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.parent_frame=function_frame_top;\n'),
-        (trace_mode -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n') ; true),
+        (trace_mode ->
+            (LP>1 -> write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=fs->call_depth+1;\n')
+            ; write(St,'\t\t\t\tframe'),write(St,UniqueId1),write(St,'.call_depth=0;\n'))
+        ; true),
         foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
         write(St,'\t\t\t\tuint32_t local_frame_top=p.frame_top;\n'),
         write(St,'\t\t\t\tbool found=false;\n'),

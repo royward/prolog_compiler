@@ -53,10 +53,22 @@ _ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load
         ret
 restore:
         mov    %rdi,%rbx # save 'this'. going to need it later
-        call   _ZN6Prolog28process_stack_state_load_auxEv #ignore the result for now
-        mov    0x8(%rbx),%eax # frame top
-        mov    0xC(%rbx),%edx # frame size
-        mul    %edx
+        call   _ZN6Prolog28process_stack_state_load_auxEj
+        # rax - scratch,store
+        # rcx - counter for scratch_buf entries
+        # rdx - store
+        # rbx - this
+        # rpb - scratch buf base
+        # rsi - live
+        # rdi - memory copy counter
+        # r8  - memory copy limit
+        # r9  - frame size
+        mov    %eax,%ecx #guarantee at least one frame to copy, so don't need to check for <0
+        mov    0xC(%rbx),%r9d # frame size
+        mov    0x10(%rbx),%rbp # scratch buf base
+outer_loop:
+        mov    0x0(%rbp,%rcx,4),%eax # current frame
+        mul    %r9d
         mov    0x0(%rbx),%rdx
         lea    0x0(%rdx,%rax),%rax
         mov    0x48(%rax),%r8 #fs->size
@@ -79,6 +91,8 @@ copy_to_stack_loop:
         cmp    %edi,%r8d
         jne    copy_to_stack_loop
 copy_to_stack_noloop:
+        sub    $1,%ecx
+        jge    outer_loop
         mov    0x30(%rax),%r15
         mov    0x28(%rax),%r14
         mov    0x20(%rax),%r13
