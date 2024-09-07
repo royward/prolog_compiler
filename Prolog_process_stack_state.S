@@ -63,7 +63,8 @@ restore:
         # rdi - memory copy counter
         # r8  - memory copy limit
         # r9  - frame size
-        mov    %eax,%ecx #guarantee at least one frame to copy, so don't need to check for <0
+        #mov    %eax,%ecx #guarantee at least one frame to copy, so don't need to check for <0
+        mov    $0,%ecx
         mov    0xC(%rbx),%r9d # frame size
         mov    0x10(%rbx),%rbp # scratch buf base
 outer_loop:

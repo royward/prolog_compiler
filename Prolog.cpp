@@ -170,12 +170,14 @@ const static uint64_t SP_BUFFER=48;
 #else
 const static uint64_t SP_BUFFER=128;
 #endif
+//const static uint64_t SP_BUFFER=1000000;
 
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
     uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
     fs->stack_bottom=(fs->store_sp-extra);
     fs->live=(fs->stack_bottom);
-    uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
+    uint8_t* top_sp=base_sp;
+    //uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
     fs->size=((top_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
     fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
     stack_used+=fs->size;
@@ -204,10 +206,10 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
     }
     uint32_t frame_count=0;
     scratch_buf[frame_count++]=frame_top;
-    while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
-        scratch_buf[frame_count++]=fs_low->parent_frame;
-        fs_low=&frames[fs_low->parent_frame];
-    }
+    // while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
+    //     scratch_buf[frame_count++]=fs_low->parent_frame;
+    //     fs_low=&frames[fs_low->parent_frame];
+    // }
 #if TRACE
     printf("%d  ",parent);
     for(int32_t i=frame_count-1;i>=0;i--) {
@@ -228,28 +230,30 @@ void Prolog::pop_frame_stack() {
     }
 }
 
-uint32_t Prolog::pop_frame_stack_track_parent() {
-    uint32_t id=frame_top;
-    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
-        if(id==frame_top) {
-            id=frames[frame_top].parent_frame;
-        }
-        stack_used-=frames[frame_top].size;
-#if TRACE
-        printf(" -%d\n",frame_top);
-#endif
-        frame_top--;
-    }
-    return id;
-}
+// uint32_t Prolog::pop_frame_stack_track_parent() {
+//     uint32_t id=frame_top;
+//     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
+//         if(id==frame_top) {
+//             id=frames[frame_top].parent_frame;
+//         }
+//         stack_used-=frames[frame_top].size;
+// #if TRACE
+//         printf(" -%d\n",frame_top);
+// #endif
+//         frame_top--;
+//     }
+//     return id;
+// }
 
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {
     pop_frame_stack();
-    if(frame_top>0 && frame_depth<frame_top-1) {
-        //std::cout << "Prolog::unwind_stack_revert_to_mark" << std::endl;
+    if(frame_top>0 && frame_depth<frame_top) {
+        //std::cout << "========================================= loaded continuation0 " << frame_top << std::endl;
         process_stack_state_load_save(frame_top);
     }
+    //std::cout << "unwind_stack_revert_to_mark " << bottom << ':' << top_unwind_stack_decouple << std::endl;
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
+        //std::cout << "unwind " << unwind_stack_decouple[i] << std::endl;
         variables[unwind_stack_decouple[i]]=0;
     }
     top_unwind_stack_decouple=bottom;

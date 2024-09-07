@@ -117,7 +117,6 @@ public:
         variables[v]=val;
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
     };
-    //void add_to_unwind_stack(uint32_t v) {if(v==6)__asm__("int3"); unwind_stack_decouple[top_unwind_stack_decouple++]=v;};
     uint8_t* base_sp=0;
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=new uint32_t[STACK_SIZES]();
