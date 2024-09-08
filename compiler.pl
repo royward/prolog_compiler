@@ -75,10 +75,10 @@ compile(RawProgram,RawGoal) :-
     nth0(InitClause,Pdict,f(Name,Arity)),
     (InputDict=[] -> true ; foldl(do_init(St),InputDict,0,_)),
     write(St,'\tuint32_t voffset_next='),write(St,I1),write(St,';\n'),
-    write(St,'\tuint8_t found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(*this'),
+    write(St,'\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(*this'),
     write_arg(St,', goal_args',0,Arity),
     write(St,', voffset_next, voffset_next, parent_frame);\n'),
-    write(St,'\tif(found==2) {\n'),
+    write(St,'\tif(found) {\n'),
     (InputDict=[] -> write(St,'\t\tstd::cout << "true." << std::endl;\n') ; foldl(do_output(St),InputDict,0,_)),
     write(St,'\t} else {\n'),
     write(St,'\t\tstd::cout << "false." << std::endl;\n'),
@@ -178,16 +178,16 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClaus
             write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
             write(St,'\t\t\tparent_frame=p.frame_top;\n'),
             write(St,'\t\t\tfs=p.process_stack_state_load_save(0);\n'),
-            write(St,'\t\t}\n'),
-            write(St,'\t\tfs->clause_index++;\n'),
-            write(St,'\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
-            write(St,'\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
-            %write(St,'\t\t\tparent_frame=p.frame_top;\n'),
-            write(St,'\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
+            write(St,'\t\t\tfs->clause_index++;\n'),
+            write(St,'\t\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
+            write(St,'\t\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
+            %write(St,'\t\t\t\tparent_frame=p.frame_top;\n'),
+            write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
             (trace_mode ->
-                write(St,'\t\t} else {\n'),
-                write(St,'\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n')
+                write(St,'\t\t\t} else {\n'),
+                write(St,'\t\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n')
             ; true),
+            write(St,'\t\t\t}\n'),
             write(St,'\t\t}\n')
         ;   true)
     ; true),
@@ -203,7 +203,7 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClaus
     ; true),
     write(St,'\t\treturn 2;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
-    (LP>1 -> write(St,'\t\tif(fs!=nullptr)fs->clause_index++;\n') ; true),
+    (LP>1,NClause1\=LP -> write(St,'\t\tif(fs!=nullptr)fs->clause_index++;\n') ; true),
     write(St,'\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
     (LP>1 -> write(St,'\t}\n') ; true),
     write(St,'next_'),write(St,Label),write(St,':;\n').
@@ -313,11 +313,6 @@ compile_clause_get_expression(St,Label,function(add,A1,A2),Name,UniqueId1,Unique
     compile_clause_get_expression(St,Label,A2,Name2,UniqueId2,UniqueId3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-% found:
-% 0=false,continuation
-% 1=false,no continuation
-% 2=true
-
 compile_clause_body(St,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
     nth0(Index,Pdict,f(Name,Arity)),
     nth0(Index,ClauseCounts,ClauseCountThis),
@@ -326,24 +321,24 @@ compile_clause_body(St,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2
         write(St,'\t\t{\n'),
         foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
         write(St,'\t\t\tuint32_t local_frame_top=p.frame_top;\n'),
-        write(St,'\t\t\tuint8_t found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
+        write(St,'\t\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
         write(St,'\t\t\tp.pop_frame_stack_track_parent(parent_frame);\n'),
-        write(St,'\t\t\tif(p.frame_top>=local_frame_top && found!=2) {\n'),
+        write(St,'\t\t\tif(p.frame_top>=local_frame_top && !found) {\n'),
         (trace_mode -> write(St,'\t\t\tstd::cout << "=== loaded continuation " << p.frame_top << std::endl;\n') ; true),
         write(St,'\t\t\t\tp.process_stack_state_load_save(local_frame_top);\n'),
         write(St,'\t\t\t}\n'),
-        write(St,'\t\t\tif(found<2) {goto fail_'),write(St,Label),write(St,';}\n'),
+        write(St,'\t\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'),
         write(St,'\t\t}\n'))
     ;   (UniqueId2=UniqueId1,
         (LP>1 -> write(St,'\t\tp.function_frame_top_last_n_clause=function_frame_top;\n') ; true),
         foldl(compile_clause_body_args_prep_vars(St),Args,Used1,Used2),
-        write(St,'\t\tuint8_t found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
+        write(St,'\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
         write(St,'\t\tp.pop_frame_stack_track_parent(parent_frame);\n'),
-        write(St,'\t\tif(found<2) {goto fail_'),write(St,Label),write(St,';}\n'))
+        write(St,'\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'))
     ).
 compile_clause_body(St,Label,_,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
     compile_clause_get_expression(St,Label,A1,Name1,UniqueId1,UniqueId2),
