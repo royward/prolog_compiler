@@ -54,7 +54,7 @@ compile(RawProgram,RawGoal) :-
     convert_program(RawProgram,Pdict,Program),
     maplist(length,Program,ClauseCounts),
     convert_input(RawGoal,f(Name,Arity),Goal,InputDict),
-    get_index_dict(f(Name,Arity),InitClause,Pdict,_,_),
+    get_index_dict(f(Name,Arity),InitClause,Pdict,_),
     length(InputDict,I1),
     open('PrologGenerated.cpp',write,St),
     write(St,'//////////////////////////////////////////////////////////////////////////////////////\n'),
@@ -160,7 +160,7 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     (LP>1 -> write(St,'\treturn (fs!=nullptr)?0:1;\n') ; write(St,'\treturn 1;\n')),
     write(St,'}\n').
 
-compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NClause,NClause1) :-
+compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t{\n') ; true),
     length(Dict,LD),

@@ -201,7 +201,7 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
         uint32_t bottom=fs_low->unwind_stack_decouple_mark;
         for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-            variables[unwind_stack_decouple[i]]=0;
+            variables[unwind_stack_decouple[i]]=TAG_VAR;
         }
     }
     uint32_t frame_count=0;
@@ -255,7 +255,7 @@ void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, 
     //std::cout << "unwind_stack_revert_to_mark " << bottom << ':' << top_unwind_stack_decouple << std::endl;
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
         //std::cout << "unwind " << unwind_stack_decouple[i] << std::endl;
-        variables[unwind_stack_decouple[i]]=0;
+        variables[unwind_stack_decouple[i]]=TAG_VAR;
     }
     top_unwind_stack_decouple=bottom;
 }

@@ -53,7 +53,7 @@ interpret(file("nqueens.pl"),string("queens(8,Q)."),Results).
 interpret(RawProgram,RawGoal,Results) :-
     convert_program(RawProgram,Pdict,Program),
     convert_input(RawGoal,Name,Goal,InputDict),
-    get_index_dict(Name,InitClause,Pdict,_,_),
+    get_index_dict(Name,InitClause,Pdict,_),
     length(InputDict,I1),
     run_program(Program,InitClause,Goal,I1,[],Sub),
     get_results(InputDict,0,Sub,Results).
@@ -66,14 +66,14 @@ get_results([Dh|Dt],N,Sub,[assign(Dh,V)|R1]) :-
     
 convert_program(X,PDict,Rform) :- prolog_ast(X,prolog(AST)),convert_ast_to_rform(AST,prog(PDict,Rform)).
 
-get_index_dict(N,V,PDictIn,PDictOut,Rep) :- get_index_dict_aux(N,0,V,PDictIn,PDictOut,Rep).
+get_index_dict(N,V,PDictIn,PDictOut) :- get_index_dict_aux(N,0,V,PDictIn,PDictOut).
 
-get_index_dict_aux(N,I,I,[],[N],false).
-get_index_dict_aux(N,I,I,[N|T],[N|T],true).
-get_index_dict_aux(N,I,V,[X|T1],[X|T2],Rep) :-
+get_index_dict_aux(N,I,I,[],[N]).
+get_index_dict_aux(N,I,I,[N|T],[N|T]).
+get_index_dict_aux(N,I,V,[X|T1],[X|T2]) :-
     N \== X,
     I1 is I+1,
-    get_index_dict_aux(N,I1,V,T1,T2,Rep).
+    get_index_dict_aux(N,I1,V,T1,T2).
 
 append_to_nth(0,V,[],[[V]]).
 append_to_nth(0,V,[H1|T],[H2|T]) :- append(H1,[V],H2).
@@ -96,30 +96,28 @@ convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],
 
 % For simplicity, I treat a fact as a rule with no body. I lose a little bit of performance that way in the interpreter, but simpler code
 convert_ast_to_rform_one(fact(compound(atom(Name),Args)),prog(PDict1,C1),prog(PDict3,C2)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2,_),
-    process_args_body(Args,[],[NormArgs,NormBody],VDict,PDict2,PDict3,VRep),
-    append_to_nth(Index,clause(VDict,VRep,NormArgs,NormBody),C1,C2).
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
+    process_args_body(Args,[],[NormArgs,NormBody],VDict,PDict2,PDict3),
+    append_to_nth(Index,clause(VDict,NormArgs,NormBody),C1,C2).
 convert_ast_to_rform_one(rule(compound(atom(Name),Args),Body),prog(PDict1,C1),prog(PDict3,C2)) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2,_),
-    process_args_body(Args,Body,[NormArgs,NormBody],VDict,PDict2,PDict3,VRep),
-    append_to_nth(Index,clause(VDict,VRep,NormArgs,NormBody),C1,C2).
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
+    process_args_body(Args,Body,[NormArgs,NormBody],VDict,PDict2,PDict3),
+    append_to_nth(Index,clause(VDict,NormArgs,NormBody),C1,C2).
     
-process_args_body(Args,Body,[ProcessedArgs,ProcessedBody],VDict2,PDict1,PDict2,VRep) :-
-    map_fold2(process_args_one,Args,ProcessedArgs,[],VDict1,[],VRep),
+process_args_body(Args,Body,[ProcessedArgs,ProcessedBody],VDict2,PDict1,PDict2) :-
+    map_fold1(process_args_one,Args,ProcessedArgs,[],VDict1),
     map_fold2(process_body_one,Body,ProcessedBody,VDict1,VDict2,PDict1,PDict2).
 
-process_args_one(variable(M),v(V),VDict1,VDict2,VRep1,VRep2) :-
-    get_index_dict(M,V,VDict1,VDict2,Rep),
-    (Rep -> VRep2=[V|VRep1] ; VRep2=VRep1).
-process_args_one(anonymous,anonymous,VDict,VDict,VRep,VRep).
-process_args_one(eol,eol,VDict,VDict,VRep,VRep).
-process_args_one(integer(N),i(N),VDict,VDict,VRep,VRep).
-process_args_one(list([],X1),X2,VDict1,VDict2,VRep1,VRep2) :- process_args_one(X1,X2,VDict1,VDict2,VRep1,VRep2).
-process_args_one(list([H1|T1],X),list(H2,T2),VDict1,VDict3,VRep1,VRep3) :-
-    process_args_one(H1,H2,VDict1,VDict2,VRep1,VRep2),
-    process_args_one(list(T1,X),T2,VDict2,VDict3,VRep2,VRep3).
+process_args_one(variable(M),v(V),VDict1,VDict2) :- get_index_dict(M,V,VDict1,VDict2).
+process_args_one(anonymous,anonymous,VDict,VDict).
+process_args_one(eol,eol,VDict,VDict).
+process_args_one(integer(N),i(N),VDict,VDict).
+process_args_one(list([],X1),X2,VDict1,VDict2) :- process_args_one(X1,X2,VDict1,VDict2).
+process_args_one(list([H1|T1],X),list(H2,T2),VDict1,VDict3) :-
+    process_args_one(H1,H2,VDict1,VDict2),
+    process_args_one(list(T1,X),T2,VDict2,VDict3).
 
-process_body_one(variable(M),v(V),VDict1,VDict2,PDict,PDict) :- get_index_dict(M,V,VDict1,VDict2,_).
+process_body_one(variable(M),v(V),VDict1,VDict2,PDict,PDict) :- get_index_dict(M,V,VDict1,VDict2).
 process_body_one(anonymous,anonymous,VDict,VDict,PDict,PDict).
 process_body_one(eol,eol,VDict,VDict,PDict,PDict).
 process_body_one(integer(N),i(N),VDict,VDict,PDict,PDict).
@@ -132,7 +130,7 @@ process_body_one(infix(Op,_,Fa1,Fb1),function(Op2,Fa2,Fb2),VDictIn,VDictOut,PDic
     process_body_one(Fa1,Fa2,VDictIn,VDictInt,PDictIn,PDictInt),
     process_body_one(Fb1,Fb2,VDictInt,VDictOut,PDictInt,PDictOut).
 process_body_one(compound(atom(Name),Args),fcall(Index,ProcessedArgs),VDict1,VDict2,PDict1,PDict3) :-
-    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2,_),
+    length(Args,La),get_index_dict(f(Name,La),Index,PDict1,PDict2),
     map_fold2(process_body_one,Args,ProcessedArgs,VDict1,VDict2,PDict2,PDict3).
 
 process_convert_op(=\=,test_neq).
@@ -144,13 +142,13 @@ process_convert_op(*,times).
 convert_input(X,f(Name,La),Args,Dict) :-
     prolog_ast(X,prolog([fact(compound(atom(Name),RawArgs))])),
     length(RawArgs,La),
-    map_fold2(process_args_one,RawArgs,Args,[],Dict,[],_).
+    map_fold1(process_args_one,RawArgs,Args,[],Dict).
 
 run_program(Program,InitClause,Goal,Nmax,Sub,Subn) :-
     nth0(InitClause,Program,Clause),
     run_program_aux(Program,Clause,Goal,Nmax,_,Sub,Subn).
 
-run_program_aux(Program,[clause(Cdict,_,Args,Body)|_],Goal,Nmax1,Nmax2,Sub1,Sub3) :-
+run_program_aux(Program,[clause(Cdict,Args,Body)|_],Goal,Nmax1,Nmax2,Sub1,Sub3) :-
     maplist(var_add(Nmax1),Args,Args2),
     maplist(var_add(Nmax1),Body,Body2),
     map_fold1(unify,Goal,Args2,Sub1,Sub2),

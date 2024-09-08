@@ -35,8 +35,8 @@
 
 const static int64_t STACK_SIZES=200000000;
 
-static const uint8_t TAG_VREF=0b001;
-static const uint8_t TAG_VAR=0b000;
+static const uint8_t TAG_VREF=0b000;
+static const uint8_t TAG_VAR=0b001;
 static const uint8_t TAG_LIST=0b010;
 static const uint8_t TAG_EOL=0b110;
 static const uint8_t TAG_INTEGER=0b100;
