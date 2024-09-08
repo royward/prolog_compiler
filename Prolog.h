@@ -36,6 +36,7 @@
 const static int64_t STACK_SIZES=200000000;
 
 static const uint8_t TAG_VREF=0b001;
+static const uint8_t TAG_VAR=0b000;
 static const uint8_t TAG_LIST=0b010;
 static const uint8_t TAG_EOL=0b110;
 static const uint8_t TAG_INTEGER=0b100;
@@ -83,11 +84,13 @@ public:
     uint32_t* scratch_buf=(uint32_t*)malloc(0x40000);
     // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, uint32_t& val) {
+loop:
         uint32_t v;
-        while((val&TAG_MASK)==TAG_VREF && (v=variables[(val>>TAG_WIDTH)])!=0) {
-            val=v;
-        }
         tag=(val&TAG_MASK);
+        if(((tag&TAG_MASK)==TAG_VREF) && (v=variables[(val>>TAG_WIDTH)])!=TAG_VAR) {
+            val=v;
+            goto loop;
+        }
     }
     bool unify(uint32_t val1, uint32_t val2);
     inline uint32_t get_list_cell() {

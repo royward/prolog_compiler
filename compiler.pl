@@ -97,7 +97,7 @@ do_output(St,InputName,N,N1) :-
 
 do_init(St,_,N,N1) :-
     N1 is N+1,
-    write(St,'\tvariables['),write(St,N),write(St,']=0;\n').
+    write(St,'\tvariables['),write(St,N),write(St,']=TAG_VAR;\n').
 
 setup_args(St,Arg,N,N1) :-
     N1 is N+1,
@@ -172,20 +172,22 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NCla
         (NClause1\=LP ->
             write(St,'\t\tif(fs==nullptr) {\n'),
             write(St,'\t\t\tfs=&p.frames[++p.frame_top];\n'),
-            write(St,'\t\t\tfs->clause_index=0;\n'),
+            write(St,'\t\t\tfs->clause_index='),write(St,NClause),write(St,';\n'),
             write(St,'\t\t\tfunction_frame_top=p.frame_top;\n'),
             write(St,'\t\t\tfs->clause_count='),write(St,LP),write(St,';\n'),
             write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
-            write(St,'\t\t\tif(fs->parent_frame==p.frame_top)asm("int3");\n'),
             write(St,'\t\t\tparent_frame=p.frame_top;\n'),
             write(St,'\t\t\tfs=p.process_stack_state_load_save(0);\n'),
-            (trace_mode -> write(St,'\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n') ; true),
             write(St,'\t\t}\n'),
             write(St,'\t\tfs->clause_index++;\n'),
             write(St,'\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
             write(St,'\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
             %write(St,'\t\t\tparent_frame=p.frame_top;\n'),
             write(St,'\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
+            (trace_mode ->
+                write(St,'\t\t} else {\n'),
+                write(St,'\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n')
+            ; true),
             write(St,'\t\t}\n')
         ;   true)
     ; true),
@@ -201,9 +203,10 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,_,Args,Body),NCla
     ; true),
     write(St,'\t\treturn 2;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
+    (LP>1 -> write(St,'\t\tif(fs!=nullptr)fs->clause_index++;\n') ; true),
     write(St,'\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
-    write(St,'next_'),write(St,Label),write(St,':;\n'),
-    (LP>1 -> write(St,'\t}\n') ; true).
+    (LP>1 -> write(St,'\t}\n') ; true),
+    write(St,'next_'),write(St,Label),write(St,':;\n').
 
 compile_clause_args_setup_vars(_,_,N,N).
 compile_clause_args_setup_vars(St,S,M,N) :- M<N,write(St,S),write(St,M),M1 is M+1,compile_clause_args_setup_vars(St,S,M1,N).
@@ -260,17 +263,17 @@ compile_clause_args1_aux2(St,Label,list(H,T),N,Used1,Used3) :-
     (member(Vh,Used1) -> Used1a=Used1 ; 
         Used1a=[Vh|Used1],
         write(St,'\t\tvar'),write(St,Vh),write(St,'=('),write(St,Vh),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-        write(St,'\t\tp.variables['),write(St,Vh),write(St,'+voffset]=0;\n')),
+        write(St,'\t\tp.variables['),write(St,Vh),write(St,'+voffset]=TAG_VAR;\n')),
     (T=v(Vt) ->
         (member(Vt,Used1a) -> true ; 
             write(St,'\t\tvar'),write(St,Vt),write(St,'=('),write(St,Vt),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-            write(St,'\t\tp.variables['),write(St,Vt),write(St,'+voffset]=0;\n')),
+            write(St,'\t\tp.variables['),write(St,Vt),write(St,'+voffset]=TAG_VAR;\n')),
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,','),write(St,'var'),write(St,Vt),write(St,');\n')
     ; T=eol ->
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,',TAG_EOL);\n')
     ; false),
     write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
-    write(St,'\t\t'),write(St,N),write(St,'='),write(St,N),write(St,'lc;\n'),
+    %write(St,'\t\t'),write(St,N),write(St,'='),write(St,N),write(St,'lc;\n'),
     write(St,'\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
 compile_clause_body_args_with_comma(St,X) :- write(St,', '),compile_clause_body_args(St,X).
@@ -290,7 +293,7 @@ compile_clause_body_args_prep_vars(St,v(V),Used1,Used2) :-
         Used2=Used1
     ;   Used2=[V|Used1],
         write(St,'\t\tvar'),write(St,V),write(St,'=('),write(St,V),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-        write(St,'\t\tp.variables['),write(St,V),write(St,'+voffset]=0;\n')).
+        write(St,'\t\tp.variables['),write(St,V),write(St,'+voffset]=TAG_VAR;\n')).
         
 compile_clause_body_args_prep_vars(_,i(_),Used,Used).
 compile_clause_body_args_prep_vars(_,eol,Used,Used).
@@ -327,7 +330,7 @@ compile_clause_body(St,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2
         maplist(compile_clause_body_args_with_comma(St),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
         write(St,'\t\t\tp.pop_frame_stack_track_parent(parent_frame);\n'),
-        write(St,'\t\t\tif(p.frame_top>=local_frame_top && found==0) {\n'),
+        write(St,'\t\t\tif(p.frame_top>=local_frame_top && found!=2) {\n'),
         (trace_mode -> write(St,'\t\t\tstd::cout << "=== loaded continuation " << p.frame_top << std::endl;\n') ; true),
         write(St,'\t\t\t\tp.process_stack_state_load_save(local_frame_top);\n'),
         write(St,'\t\t\t}\n'),

@@ -19,7 +19,7 @@ not_attack(Q0,D0,[Q|Qs]) :-
     Q =\= D0+Q0,
     D1 is D0+1,
     not_attack(Q0,D1,Qs).
-    
+
 % queens(4,Q).
 
 % time(queens(16,Q)). 

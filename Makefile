@@ -2,7 +2,7 @@ CXX:=g++
 
 FLAGS:= -DUSE_AVX=1
 OPT:= -ggdb3 -mavx
-FAST:= -O3 -mavx
+FAST:= -ggdb3 -O3 -mavx
 
 release:
 	@$(CXX) $(FAST) $(FLAGS) -c -o Prolog.o Prolog.cpp

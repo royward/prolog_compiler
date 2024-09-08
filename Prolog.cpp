@@ -176,8 +176,8 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
     fs->stack_bottom=(fs->store_sp-extra);
     fs->live=(fs->stack_bottom);
-    uint8_t* top_sp=base_sp;
-    //uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
+    //uint8_t* top_sp=base_sp;
+    uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
     fs->size=((top_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
     fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
     stack_used+=fs->size;
@@ -247,7 +247,9 @@ void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, uint32_t& parent) {
     pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
-        //std::cout << "========================================= loaded continuation0 " << frame_top << std::endl;
+#if TRACE
+        std::cout << "=== loaded continuation0 " << frame_top << std::endl;
+#endif
         process_stack_state_load_save(frame_top);
     }
     //std::cout << "unwind_stack_revert_to_mark " << bottom << ':' << top_unwind_stack_decouple << std::endl;
