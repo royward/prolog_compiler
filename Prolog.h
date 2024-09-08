@@ -77,7 +77,7 @@ public:
 class Prolog {
 public:
     // Fields beyond here must not be altered as there are assembler offsets into them
-    FrameStore* frames=new FrameStore[1000];
+    FrameStore* frames=(FrameStore*)malloc(1000*sizeof(FrameStore));
     uint32_t frame_top;
     uint32_t frame_size=sizeof(FrameStore);
     uint32_t* scratch_buf=(uint32_t*)malloc(0x40000);
@@ -110,8 +110,8 @@ public:
     void process_stack_state_save_aux(FrameStore* fs);
     uint32_t process_stack_state_load_aux(uint32_t parent);
     void pop_frame_stack();
-    uint32_t pop_frame_stack_track_parent();
-    void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth);
+    void pop_frame_stack_track_parent(uint32_t& parent);
+    void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth, uint32_t& parent);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
     inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {
         variables[v]=val;
@@ -119,13 +119,13 @@ public:
     };
     uint8_t* base_sp=0;
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
-    uint32_t* variables=new uint32_t[STACK_SIZES]();
-    uint32_t* unwind_stack_decouple=new uint32_t[STACK_SIZES];
+    uint32_t* variables=(uint32_t*)malloc(4*STACK_SIZES);
+    uint32_t* unwind_stack_decouple=(uint32_t*)malloc(4*STACK_SIZES);
     uint32_t top_unwind_stack_decouple=0;
     uint32_t stack_used=0;
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
     uint32_t freelist_list=0;
     uint32_t function_frame_top_last_n_clause;
-    List* list_values=new List[STACK_SIZES];
+    List* list_values=(List*)malloc(STACK_SIZES*sizeof(List));
 };

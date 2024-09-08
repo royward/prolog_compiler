@@ -206,10 +206,10 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
     }
     uint32_t frame_count=0;
     scratch_buf[frame_count++]=frame_top;
-    // while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
-    //     scratch_buf[frame_count++]=fs_low->parent_frame;
-    //     fs_low=&frames[fs_low->parent_frame];
-    // }
+    while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
+        scratch_buf[frame_count++]=fs_low->parent_frame;
+        fs_low=&frames[fs_low->parent_frame];
+    }
 #if TRACE
     printf("%d  ",parent);
     for(int32_t i=frame_count-1;i>=0;i--) {
@@ -224,29 +224,28 @@ void Prolog::pop_frame_stack() {
     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
         stack_used-=frames[frame_top].size;
 #if TRACE
-        printf(" -%d\n",frame_top);
+//        printf(" -%d\n",frame_top);
 #endif
         frame_top--;
     }
 }
 
-// uint32_t Prolog::pop_frame_stack_track_parent() {
-//     uint32_t id=frame_top;
-//     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
-//         if(id==frame_top) {
-//             id=frames[frame_top].parent_frame;
-//         }
-//         stack_used-=frames[frame_top].size;
-// #if TRACE
-//         printf(" -%d\n",frame_top);
-// #endif
-//         frame_top--;
-//     }
-//     return id;
-// }
+void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
+    //pop_frame_stack();
+    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
+        if(parent==frame_top) {
+            parent=frames[frame_top].parent_frame;
+        }
+        stack_used-=frames[frame_top].size;
+#if TRACE
+//        printf(" -%d\n",frame_top);
+#endif
+        frame_top--;
+    }
+}
 
-void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth) {
-    pop_frame_stack();
+void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, uint32_t& parent) {
+    pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
         //std::cout << "========================================= loaded continuation0 " << frame_top << std::endl;
         process_stack_state_load_save(frame_top);
