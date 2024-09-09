@@ -31,21 +31,22 @@
 compile(file("append.pl"),string("append([],[],X).")).
 compile(file("append.pl"),string("append([],[1],X).")).
 compile(file("append.pl"),string("append([],[1,2],X).")).
+compile(file("append.pl"),string("append([1],[],X).")).
 compile(file("append.pl"),string("append([1,2],[3,4],X).")).
 compile(file("append.pl"),string("append([1,2],X,[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,[1],[2]).")).
 compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,Y,[1]).")).
 compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
-compile(file("nqueens.pl"),string("queens(1,Q).")).
+compile(file("nqueens.pl"),string("nqueens(1,Q).")).
 compile(file("nqueens.pl"),string("range(1,4,X).")).
-compile(file("nqueens.pl"),string("queens_aux([1],[],Q).")).
+compile(file("nqueens.pl"),string("nqueens_aux([1],[],Q).")).
 compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
 compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
-compile(file("nqueens.pl"),string("queens(4,Q).")).
-compile(file("nqueens.pl"),string("queens(8,Q).")).
+compile(file("nqueens.pl"),string("nqueens(4,Q).")).
+compile(file("nqueens.pl"),string("nqueens(8,Q).")).
 */
 
 trace_mode :- fail.
@@ -138,6 +139,7 @@ write_function_template(St,f(Name,Arity)) :-
     write(St,', uint32_t voffset, uint32_t& voffset_new, uint32_t parent_frame);\n').
 
 compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
+    %writeln(Predicate),
     length(Predicate,LP),
     nl(St),write(St,'uint8_t '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
@@ -157,7 +159,8 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     %(LP>1 -> write(St,'\tp.pop_frame_stack();\n') ; true),
     write(St,'\tvoffset_new=voffset;\n'),
     (trace_mode -> write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==nullptr)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;\n') ; true),
-    (LP>1 -> write(St,'\treturn (fs!=nullptr)?0:1;\n') ; write(St,'\treturn 1;\n')),
+    write(St,'\treturn false;\n'),
+    %(LP>1 -> write(St,'\treturn (fs!=nullptr)?0:1;\n') ; write(St,'\treturn 1;\n')),
     write(St,'}\n').
 
 compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClause,NClause1) :-
@@ -201,7 +204,7 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClaus
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << (int)((fs==nullptr)?-1:fs->clause_index-1) << std::endl;\n')
     ; true),
-    write(St,'\t\treturn 2;\n'),
+    write(St,'\t\treturn true;\n'),
     write(St,'fail_'),write(St,Label),write(St,':;\n'),
     (LP>1,NClause1\=LP -> write(St,'\t\tif(fs!=nullptr)fs->clause_index++;\n') ; true),
     write(St,'\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
