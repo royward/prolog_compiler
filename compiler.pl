@@ -47,6 +47,7 @@ compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
 compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 compile(file("nqueens.pl"),string("nqueens(4,Q).")).
 compile(file("nqueens.pl"),string("nqueens(8,Q).")).
+compile(file("nqueens.pl"),string("nqueens(12,Q).")).
 */
 
 trace_mode :- fail.
@@ -160,7 +161,6 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     write(St,'\tvoffset_new=voffset;\n'),
     (trace_mode -> write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==nullptr)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;\n') ; true),
     write(St,'\treturn false;\n'),
-    %(LP>1 -> write(St,'\treturn (fs!=nullptr)?0:1;\n') ; write(St,'\treturn 1;\n')),
     write(St,'}\n').
 
 compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClause,NClause1) :-
@@ -276,7 +276,6 @@ compile_clause_args1_aux2(St,Label,list(H,T),N,Used1,Used3) :-
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write(St,'var'),write(St,Vh),write(St,',TAG_EOL);\n')
     ; false),
     write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
-    %write(St,'\t\t'),write(St,N),write(St,'='),write(St,N),write(St,'lc;\n'),
     write(St,'\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
 compile_clause_body_args_with_comma(St,X) :- write(St,', '),compile_clause_body_args(St,X).
