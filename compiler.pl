@@ -139,8 +139,25 @@ write_function_template(St,f(Name,Arity)) :-
     write_arg(St,', uint32_t arg',0,Arity),
     write(St,', uint32_t voffset, uint32_t& voffset_new, uint32_t parent_frame);\n').
 
+create_multifire_matrix([],[]).
+create_multifire_matrix([clause(_,Args,_)|RestC],[Row|RestR]) :-
+    foldl(create_multifire_row,RestC,Args,Row),
+    create_multifire_matrix(RestC,RestR).
+
+create_multifire_row(clause(_,Args1,_),Args2,Row) :- maplist(create_multifire_row_one,Args1,Args2,Row).
+
+create_multifire_row_one(eol,eol,v(-1)) :- !.
+create_multifire_row_one(_,v(N),v(N)) :- !.
+create_multifire_row_one(i(N),i(N),v(-1)) :- !.
+create_multifire_row_one(list(H1,T1),list(H2,T2),R) :- !,
+    create_multifire_row_one(H1,H2,Ra),
+    create_multifire_row_one(T1,T2,Rb),
+    (Ra=v(_),Rb=v(_) -> R=v(-1) ; R=list(H2,T2)).
+create_multifire_row_one(v(N),_,v(N)).
+create_multifire_row_one(_,X,X).
+
 compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
-    %writeln(Predicate),
+    create_multifire_matrix(Predicate,Matrix),
     length(Predicate,LP),
     nl(St),write(St,'uint8_t '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog& p'),
     write_arg(St,', uint32_t arg',0,Arity),
@@ -156,14 +173,19 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
         write_arg2(St,' << \',\' << p.pldisplay(arg',')',0,Arity),
         write(St,' << " c=" << (int)((fs==nullptr)?-1:fs->clause_index) << std::endl;\n')
     ; true),
-    foldl(compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP),Predicate,0,_),
+    foldl(compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP),Predicate,Matrix,0,_),
     %(LP>1 -> write(St,'\tp.pop_frame_stack();\n') ; true),
     write(St,'\tvoffset_new=voffset;\n'),
     (trace_mode -> write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==nullptr)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;\n') ; true),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
-compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClause,NClause1) :-
+compile_args_conditions(_,v(_),M,N) :- !,N is M+1.
+compile_args_conditions(St,_,M,N) :-
+    write(St,' && ((arg'),write(St,M),write(St,'&TAG_MASK)==TAG_VREF)'),
+    N is M+1.
+
+compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,NClause,NClause1) :-
     NClause1 is NClause+1,
     (LP>1 -> write(St,'\t{\n') ; true),
     length(Dict,LD),
@@ -173,7 +195,9 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),NClaus
     fold2(compile_clause_args1(St,Label),Args,0,_,[],Used1),
     (LP>1 ->
         (NClause1\=LP ->
-            write(St,'\t\tif(fs==nullptr) {\n'),
+            (NClause=0 -> write(St,'\t\tif(true') ; write(St,'\t\tif(fs==nullptr')),
+            foldl(compile_args_conditions(St),MRow,0,_),
+            write(St,') {\n'),
             write(St,'\t\t\tfs=&p.frames[++p.frame_top];\n'),
             write(St,'\t\t\tfs->clause_index='),write(St,NClause),write(St,';\n'),
             write(St,'\t\t\tfunction_frame_top=p.frame_top;\n'),
