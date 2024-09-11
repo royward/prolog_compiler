@@ -116,6 +116,9 @@ loop:
     void pop_frame_stack_track_parent(uint32_t& parent);
     void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth, uint32_t& parent);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
+    // inline void var_set(uint32_t v, uint32_t val) {
+    //     variables[v]=val;
+    // };
     inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {
         variables[v]=val;
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
