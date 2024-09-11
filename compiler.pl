@@ -299,10 +299,9 @@ compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2) :-
         ; write(St,'\t\tif(!p.unify('),write_var_from_dictt(St,V,DictT),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
     ;
         Used2=[V|Used1],
-        (nth0(V,DictT,v(K)) ->
-            write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,N),write(St,';\n'),
-            write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
-        ; true)
+        nth0(V,DictT,v(K)),
+        write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,N),write(St,';\n'),
+        write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
     ).
 compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
     H=v(Vh),
@@ -329,11 +328,9 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
         ; true),
     (T=v(Vt) ->
         (member(Vt,Used1a) -> true ;
-            nth0(Vt,DictT,X),
-            (X=v(K) ->
-                write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-                write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n'))
-        ; true),
+            nth0(Vt,DictT,v(K)),
+            write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
+            write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n')),
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),
         write_var_from_dictt(St,Vh,DictT),write(St,','),write_var_from_dictt(St,Vt,DictT),write(St,');\n')
     ; T=eol ->
@@ -355,13 +352,12 @@ compile_clause_body_args(St,DictT,list(H,T)) :-
     write(St,')').
 
 compile_clause_body_args_prep_vars(St,DictT,v(V),Used1,Used2) :-
-    (nth0(V,DictT,v(K)) ->
-        (member(V,Used1) ->
-            Used2=Used1
-        ;   Used2=[V|Used1],
-            write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-            write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n'))
-    ; Used2=Used1).
+    (member(V,Used1) ->
+        Used2=Used1
+    ;   Used2=[V|Used1],
+        nth0(V,DictT,v(K)),
+        write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
+        write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n')).
 compile_clause_body_args_prep_vars(_,_,i(_),Used,Used).
 compile_clause_body_args_prep_vars(_,_,eol,Used,Used).
 compile_clause_body_args_prep_vars(St,DictT,list(H,T),Used1,Used3) :-
@@ -420,6 +416,7 @@ compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,Un
         write(St,'\t\tif(!'),write_var_from_dictt(St,V,DictT),write(St,'!='),write(St,Name2),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n')
     ;
         Used2=[V|Used1],
-        write(St,'\t\t'),write_var_from_dictt(St,V,DictT),write(St,'='),write(St,Name2),write(St,';\n')
-        %write(St,'\t\tp.var_set_add_to_unwind_stack('),write_var_from_dictt(St,V,DictT),write(St,'>>TAG_WIDTH,'),write_var_from_dictt(St,V,DictT),write(St,');\n')
+        nth0(V,DictT,v(K)),
+        write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,Name2),write(St,';\n'),
+        write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,K),write(St,'+voffset,var'),write(St,K),write(St,');\n')
     ).
