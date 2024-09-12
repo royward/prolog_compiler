@@ -321,16 +321,16 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
     write(St,'\t\t} else if(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
     (member(Vh,Used1) -> Used1a=Used1 ;
         Used1a=[Vh|Used1],
-        nth0(Vt,DictT,X),
+        nth0(Vh,DictT,X),
         (X=v(K) ->
             write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
             write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n'))
         ; true),
     (T=v(Vt) ->
         (member(Vt,Used1a) -> true ;
-            nth0(Vt,DictT,v(K)),
-            write(St,'\t\tvar'),write(St,K),write(St,'=('),write(St,K),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
-            write(St,'\t\tp.variables['),write(St,K),write(St,'+voffset]=TAG_VAR;\n')),
+            nth0(Vt,DictT,v(K2)),
+            write(St,'\t\tvar'),write(St,K2),write(St,'=('),write(St,K2),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
+            write(St,'\t\tp.variables['),write(St,K2),write(St,'+voffset]=TAG_VAR;\n')),
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),
         write_var_from_dictt(St,Vh,DictT),write(St,','),write_var_from_dictt(St,Vt,DictT),write(St,');\n')
     ; T=eol ->
@@ -371,7 +371,7 @@ compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2) :-
         write(St,'\t\tuint8_t tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,';\n'),
         write(St,'\t\tp.pointer_chase(tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,',var'),write(St,K),write(St,');\n'),
         atomics_to_string(['var',K],Name)
-    ; nth0(V,DictT,a(K)),atomics_to_string(['arg',K],Name)),
+    ; nth0(V,DictT,a(K2)),atomics_to_string(['arg',K2],Name)),
     write(St,'\t\tif(('),write_var_from_dictt(St,V,DictT),write(St,'&TAG_MASK)!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
 compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,UniqueId3) :-
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2),
