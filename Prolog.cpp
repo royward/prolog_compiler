@@ -53,10 +53,10 @@ Tags in low bits - tags are not for that type, but for the type that it is point
 
 bool Prolog::unify(uint32_t val1, uint32_t val2) {
     // First do any pointer chasing. There may be benefits to checking variable matching first
-    uint8_t tag1;
-    pointer_chase(tag1,val1);
-    uint8_t tag2;
-    pointer_chase(tag2,val2);
+    uint8_t tag1=val1&TAG_MASK;
+    //pointer_chase(tag1,val1);
+    uint8_t tag2=val2&TAG_MASK;;
+    //pointer_chase(tag2,val2);
     if(tag2==TAG_VREF) {
         variables[(val2>>TAG_WIDTH)]=val1;
         unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>TAG_WIDTH;

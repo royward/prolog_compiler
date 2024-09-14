@@ -49,6 +49,7 @@ compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 compile(file("nqueens.pl"),string("nqueens(4,Q).")).
 compile(file("nqueens.pl"),string("nqueens(8,Q).")).
 compile(file("nqueens.pl"),string("nqueens(12,Q).")).
+compile(file("foo.pl"),string("foo(1,2,X).")).
 */
 
 trace_mode :- fail.
@@ -166,7 +167,7 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     (LP>1 -> write(St,'\tFrameStore* fs=nullptr;\n') ; true),
     write(St,'\tuint32_t unwind_stack_decouple_mark=p.top_unwind_stack_decouple;\n'),
     (Arity>0 -> write(St,'\tuint8_t tag_arg0'),compile_clause_args_setup_vars(St,', tag_arg',1,Arity),write(St,';\n') ; true),
-    compile_clause_args_pointer_chase(St,Arity,0),
+    %compile_clause_args_pointer_chase(St,Arity,0),
     write(St,'\tuint32_t function_frame_top='),
     (LP>1 -> write(St,'p.frame_top;\n') ; write(St,'p.function_frame_top_last_n_clause;\n')),
     (trace_mode,LP>1 ->
@@ -214,10 +215,13 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,N
     maplist(=(nomatch),EmptyDictTranslate),
     get_var_arg_map(EmptyDictTranslate,DictTranslate0,Args,0,[],Used0),
     fill_var_map(DictTranslate0,DictT,0,LD),
+    empty_assoc(Sdict0),
+    put_assoc(x0,Sdict0,y0,Sdict0a),
+    put_assoc(x1,Sdict0a,y1,Sdict1),
     write(St,'\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
     (LD>0 -> write(St,'\t\tuint32_t var0'),compile_clause_args_setup_vars(St,', var',1,LD),write(St,';\n') ; true),
     atomics_to_string(['label_c',NClause],Label),
-    fold2(compile_clause_args1(St,DictT,Label),Args,0,_,Used0,Used1),
+    fold3(compile_clause_args1(St,DictT,Label),Args,0,_,Used0,Used1,Sdict1,Sdict2),
     (LP>1 ->
         (NClause1\=LP ->
             (NClause=0 -> write(St,'\t\tif(true') ; write(St,'\t\tif(fs==nullptr')),
@@ -244,7 +248,7 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,N
         ;   true)
     ; true),
     foldl(compile_clause_body_args_prep_vars(St,DictT),Args,Used1,Used2),
-    fold2(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_),
+    fold3(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_,Sdict2,_),
     write(St,'\t\tvoffset_new=voffset_next;\n'),
     %(LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
     (trace_mode,LP>1 ->
@@ -263,47 +267,109 @@ compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,N
 compile_clause_args_setup_vars(_,_,N,N).
 compile_clause_args_setup_vars(St,S,M,N) :- M<N,write(St,S),write(St,M),M1 is M+1,compile_clause_args_setup_vars(St,S,M1,N).
 
-compile_clause_args_pointer_chase(_,Arity,Arity).
-compile_clause_args_pointer_chase(St,Arity,N) :-
-    N<Arity,
-    N1 is N+1,
-    write(St,'\tp.pointer_chase(tag_arg'),write(St,N),write(St,',arg'),write(St,N),write(St,');\n'),
-    compile_clause_args_pointer_chase(St,Arity,N1).    
+%compile_clause_args_pointer_chase(_,Arity,Arity).
+%compile_clause_args_pointer_chase(St,Arity,N) :-
+%    N<Arity,
+%    N1 is N+1,
+%    write(St,'\tp.pointer_chase(tag_arg'),write(St,N),write(St,',arg'),write(St,N),write(St,');\n'),
+%    compile_clause_args_pointer_chase(St,Arity,N1).
 
 write_var_from_dictt(St,N,DictT) :-
     nth0(N,DictT,X),
     ( X=v(K) -> write(St,'var'),write(St,K)
     ; X=a(K) -> write(St,'arg'),write(St,K)).
 
-compile_clause_args1(St,DictT,Label,X,N,N1,Used1,Used2) :-
+arg_to_atom_for_dict(DictT,N,V) :-
+    nth0(N,DictT,X),
+    (X=a(K) -> atomic_concat(arg,K,V)
+    ; X=v(K), atomic_concat(var,K,V)).
+
+/*
+unchased
+chased_untagged
+chased_tagged
+ground
+*/
+
+get_from_dict(Name,Sdict1,Result,Sdict2) :-
+    (get_assoc(Name,Sdict1,Result) -> Sdict2=Sdict1
+    ; Result=k(chased_untagged),put_assoc(Name,Sdict1,Result,Sdict2)).
+
+put_in_dict(Name,Sdict1,Value,Sdict2) :- put_assoc(Name,Sdict1,Value,Sdict2).
+
+check_got_tag(St,Name,Sdict1,Sdict3) :-
+    get_from_dict(Name,Sdict1,PCState0,Sdict2),
+    (PCState0=k(unchased) ->
+        write(St,'\t\ttag_'),write(St,Name),write(St,'=p.pointer_chase('),write(St,Name),write(St,');\n'),
+        put_in_dict(Name,Sdict2,k(chased_tagged),Sdict3)
+    ; PCState0=k(chased_untagged) ->
+        write(St,'\t\ttag_'),write(St,Name),write(St,'=('),write(St,Name),write(St,'&TAG_MASK);\n'),
+        put_in_dict(Name,Sdict2,k(chased_tagged),Sdict3)
+    ; Sdict3=Sdict1).
+
+check_pointer_chase_notag(St,Name,Sdict1,Sdict3) :-
+    get_from_dict(Name,Sdict1,PCState0,Sdict2),
+    (PCState0=k(unchased) ->
+        write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n'),
+        put_in_dict(Name,Sdict2,k(chased),Sdict3)
+    ; Sdict3=Sdict1).
+
+check_pointer_chase_notag_for_fcall(St,Name,Sdict1,Sdict3) :-
+    get_from_dict(Name,Sdict1,PCState0,Sdict2),
+    (PCState0=k(unchased) ->
+        write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n')
+    ; true),
+    (PCState0=k(ground) -> Sdict3=Sdict2
+    ; put_in_dict(Name,Sdict2,k(unchased),Sdict3)).
+
+check_pointer_chase_notag_for_fcall_list(_,[],_,Sdict,Sdict).
+check_pointer_chase_notag_for_fcall_list(St,[v(N)|ArgRest],DictT,Sdict1,Sdictn) :-
+    arg_to_atom_for_dict(DictT,N,Name),
+    check_pointer_chase_notag_for_fcall(St,Name,Sdict1,Sdict2),
+    check_pointer_chase_notag_for_fcall_list(St,ArgRest,DictT,Sdict2,Sdictn).
+check_pointer_chase_notag_for_fcall_list(St,[list(V1,V2)|ArgRest],DictT,Sdict1,Sdictn) :-
+    check_pointer_chase_notag_for_fcall_list(St,[V1,V2|ArgRest],DictT,Sdict1,Sdictn).
+check_pointer_chase_notag_for_fcall_list(St,[eol|ArgRest],DictT,Sdict1,Sdict2) :-
+    check_pointer_chase_notag_for_fcall_list(St,ArgRest,DictT,Sdict1,Sdict2).
+check_pointer_chase_notag_for_fcall_list(St,[i(_)|ArgRest],DictT,Sdict1,Sdict2) :-
+    check_pointer_chase_notag_for_fcall_list(St,ArgRest,DictT,Sdict1,Sdict2).
+
+compile_clause_args1(St,DictT,Label,X,N,N1,Used1,Used2,Sdict1,Sdict2) :-
     N1 is N+1,
     atomics_to_string(['arg',N],Argname),
-    compile_clause_args1_aux(St,DictT,Label,X,Argname,Used1,Used2).
+    compile_clause_args1_aux(St,DictT,Label,X,Argname,Used1,Used2,Sdict1,Sdict2).
 
-compile_clause_args1_aux(St,DictT,Label,X,N,Used1,Used2) :-
-    compile_clause_args1_aux2(St,DictT,Label,X,N,Used1,Used2),
+compile_clause_args1_aux(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2) :-
+    compile_clause_args1_aux2(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2),
     write(St,'s_'),write(St,Label),write(St,'_'),write(St,N),write(St,':;\n').
 
-compile_clause_args1_aux2(St,_,Label,eol,N,Used1,Used1) :-
+compile_clause_args1_aux2(St,_,Label,eol,N,Used1,Used1,Sdict1,Sdict2) :-
+    check_got_tag(St,N,Sdict1,Sdict2),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_EOL) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
     write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,TAG_EOL);\n').
-compile_clause_args1_aux2(St,_,Label,i(I),N,Used1,Used1) :-
+compile_clause_args1_aux2(St,_,Label,i(I),N,Used1,Used1,Sdict1,Sdict2) :-
+    check_got_tag(St,N,Sdict1,Sdict2),
     write(St,'\t\tif('),write(St,N),write(St,'==('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
     write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER);\n').
-compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2) :-
+compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn) :-
     (member(V,Used1) ->
         Used2=Used1,
-        (nth0(V,DictT,a(NN)),atomics_to_string(['arg',NN],N) -> true
-        ; write(St,'\t\tif(!p.unify('),write_var_from_dictt(St,V,DictT),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
+        (nth0(V,DictT,a(NN)),atomics_to_string(['arg',NN],N) -> Sdictn=Sdict1
+        ;   arg_to_atom_for_dict(DictT,V,VV),
+            check_pointer_chase_notag_for_fcall(St,VV,Sdict1,Sdict2),
+            check_pointer_chase_notag_for_fcall(St,N,Sdict2,Sdictn),
+            write(St,'\t\tif(!p.unify('),write(St,VV),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
     ;
-        Used2=[V|Used1],
+        Used2=[V|Used1],Sdict3=Sdict1,
         nth0(V,DictT,v(K)),
         write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,N),write(St,';\n'),
+        check_pointer_chase_notag(St,N,Sdict3,Sdictn),
         write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
     ).
-compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
+compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdict4) :-
+    check_got_tag(St,N,Sdict1,Sdict1a),
     H=v(Vh),
     atomics_to_string([N,'h'],ArgH),
     atomics_to_string([N,'t'],ArgT),
@@ -311,13 +377,13 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
     write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_LIST) {\n'),
     write(St,'\t\tList& '),write(St,N),write(St,'l=p.list_values['),write(St,N),write(St,'>>TAG_WIDTH];\n'),
     write(St,'\t\t'),write(St,ArgH),write(St,'='),write(St,N),write(St,'l.head;\n'),
-    write(St,'\t\tuint8_t tag_'),write(St,ArgH),write(St,';\n'),
-    write(St,'\t\tp.pointer_chase(tag_'),write(St,ArgH),write(St,','),write(St,ArgH),write(St,');\n'),
-    compile_clause_args1_aux(St,DictT,Label,H,ArgH,Used1,Used2),
+    %write(St,'\t\tuint8_t tag_'),write(St,ArgH),write(St,';\n'),
+    write(St,'\t\tp.pointer_chase_notag('),write(St,ArgH),write(St,');\n'),
+    compile_clause_args1_aux(St,DictT,Label,H,ArgH,Used1,Used2,Sdict1a,Sdict2),
     write(St,'\t\t'),write(St,ArgT),write(St,'='),write(St,N),write(St,'l.tail;\n'),
     write(St,'\t\tuint8_t tag_'),write(St,ArgT),write(St,';\n'),
     write(St,'\t\tp.pointer_chase(tag_'),write(St,ArgT),write(St,','),write(St,ArgT),write(St,');\n'),
-    compile_clause_args1_aux(St,DictT,Label,T,ArgT,Used2,Used3),
+    compile_clause_args1_aux(St,DictT,Label,T,ArgT,Used2,Used3,Sdict2,Sdict3),
     write(St,'\t\t} else if(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
     (member(Vh,Used1) -> Used1a=Used1 ;
         Used1a=[Vh|Used1],
@@ -336,6 +402,7 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3) :-
     ; T=eol ->
         write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write_var_from_dictt(St,Vh,DictT),write(St,',TAG_EOL);\n')
     ; false),
+    check_pointer_chase_notag(St,N,Sdict3,Sdict4),
     write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
     write(St,'\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
@@ -369,7 +436,7 @@ compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2) :-
     UniqueId2 is UniqueId1+1,
     (nth0(V,DictT,v(K)) ->
         write(St,'\t\tuint8_t tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,';\n'),
-        write(St,'\t\tp.pointer_chase(tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,',var'),write(St,K),write(St,');\n'),
+        write(St,'\t\t\tp.pointer_chase(tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,',var'),write(St,K),write(St,');\n'),
         atomics_to_string(['var',K],Name)
     ; nth0(V,DictT,a(K2)),atomics_to_string(['arg',K2],Name)),
     write(St,'\t\tif(('),write_var_from_dictt(St,V,DictT),write(St,'&TAG_MASK)!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
@@ -378,7 +445,7 @@ compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2) :-
+compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
     nth0(Index,Pdict,f(Name,Arity)),
     nth0(Index,ClauseCounts,ClauseCountThis),
     (ClauseCountThis>1 ->
@@ -386,6 +453,7 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
         write(St,'\t\t{\n'),
         foldl(compile_clause_body_args_prep_vars(St,DictT),Args,Used1,Used2),
         write(St,'\t\t\tuint32_t local_frame_top=p.frame_top;\n'),
+        check_pointer_chase_notag_for_fcall_list(St,Args,DictT,Sdict1,Sdict2),
         write(St,'\t\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St,DictT),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
@@ -399,17 +467,18 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
     ;   (UniqueId2=UniqueId1,
         (LP>1 -> write(St,'\t\tp.function_frame_top_last_n_clause=function_frame_top;\n') ; true),
         foldl(compile_clause_body_args_prep_vars(St,DictT),Args,Used1,Used2),
+        check_pointer_chase_notag_for_fcall_list(St,Args,DictT,Sdict1,Sdict2),
         write(St,'\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St,DictT),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
         write(St,'\t\tp.pop_frame_stack_track_parent(parent_frame);\n'),
         write(St,'\t\tif(!found) {goto fail_'),write(St,Label),write(St,';}\n'))
     ).
-compile_clause_body(St,DictT,Label,_,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3) :-
+compile_clause_body(St,DictT,Label,_,_,_,function(test_neq,A1,A2),Used,Used,UniqueId1,UniqueId3,Sdict1,Sdict1) :-
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2),
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3),
     write(St,'\t\tif('),write(St,Name1),write(St,'=='),write(St,Name2),write(St,') {goto fail_'),write(St,Label),write(St,';}\n').
-compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2) :-
+compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId1,UniqueId2),
     (member(V,Used1) ->
         Used2=Used1,
@@ -417,6 +486,8 @@ compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,Un
     ;
         Used2=[V|Used1],
         nth0(V,DictT,v(K)),
-        write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,Name2),write(St,';\n'),
-        write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,K),write(St,'+voffset,var'),write(St,K),write(St,');\n')
+        atomic_concat(var,K,Name),
+        check_pointer_chase_notag(St,Name,Sdict1,Sdict2),
+        write(St,'\t\t'),write(St,Name),write(St,'='),write(St,Name2),write(St,';\n'),
+        write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,K),write(St,'+voffset,'),write(St,Name),write(St,');\n')
     ).

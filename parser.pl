@@ -67,6 +67,10 @@ map_fold2(Pred,[X|Xs],[Y|Ys],A1,A3,B1,B3) :- call(Pred,X,Y,A1,A2,B1,B2),map_fold
 fold2(_,[],A,A,B,B).
 fold2(Pred,[X|Xs],A1,A3,B1,B3) :- call(Pred,X,A1,A2,B1,B2),fold2(Pred,Xs,A2,A3,B2,B3).
 
+% fold3(Pred,ListIn,AccIn,AccOut,BccIn,BccOut,CccIn,CccOut).
+fold3(_,[],A,A,B,B,C,C).
+fold3(Pred,[X|Xs],A1,A3,B1,B3,C1,C3) :- call(Pred,X,A1,A2,B1,B2,C1,C2),fold3(Pred,Xs,A2,A3,B2,B3,C2,C3).
+
 convert_ast_to_rform(AST,Program) :- foldl(convert_ast_to_rform_one,AST,prog([],[]),Program).
 
 % For simplicity, I treat a fact as a rule with no body. I lose a little bit of performance that way in the interpreter, but simpler code

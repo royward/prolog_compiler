@@ -92,6 +92,15 @@ loop:
             goto loop;
         }
     }
+    inline void pointer_chase_notag(uint32_t& val) {
+loop:
+        uint32_t v;
+        uint8_t tag=(val&TAG_MASK);
+        if(((tag&TAG_MASK)==TAG_VREF) && (v=variables[(val>>TAG_WIDTH)])!=TAG_VAR) {
+            val=v;
+            goto loop;
+        }
+    }
     bool unify(uint32_t val1, uint32_t val2);
     inline uint32_t get_list_cell() {
         if(freelist_list==0) {
