@@ -301,7 +301,12 @@ get_from_dict(Name,Sdict1,Result,Sdict2) :-
 
 put_in_dict(Name,Sdict1,Value,Sdict2) :- put_assoc(Name,Sdict1,Value,Sdict2).
 
-%check_var_type(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
+check_tag_var_type(St,Name,state(Sdict1,Tags1),state(Sdict4,Tags2),TpSet,Label) :-
+    check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict2,Tags2)),
+    get_from_dict(Name,Sdict2,k(X,Tp),Sdict3),
+    (Tp=TpSet -> Sdict4=Sdict3
+    ;   put_in_dict(Name,Sdict3,k(X,TpSet),Sdict4),
+        write(St,'\t\tif(tag_'),write(St,Name),write(St,'!='),write(St,TpSet),write(St,') {goto fail_'),write(St,Label),write(St,';}\n')).
 
 check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
@@ -441,13 +446,8 @@ compile_clause_get_expression(_,_,_,i(I),Name,UniqueId,UniqueId,Sdict1,Sdict1) :
 compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
     UniqueId2 is UniqueId1,
     arg_to_atom_for_dict(DictT,V,Name),
-    check_got_tag(St,Name,Sdict1,Sdict2),
-    write(St,'\t\tif(tag_'),write(St,Name),write(St,'!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
-%    (nth0(V,DictT,v(K)) ->
-%        atomic_concat(var,K,V),
-%        atomics_to_string(['var',K],Name)
-%    ; nth0(V,DictT,a(K2)),atomics_to_string(['arg',K2],Name)),
-%    write(St,'\t\tif(('),write_var_from_dictt(St,V,DictT),write(St,'&TAG_MASK)!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
+    %check_got_tag(St,Name,Sdict1,Sdict2),
+    check_tag_var_type(St,Name,Sdict1,Sdict2,'TAG_INTEGER',Label).
 compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,UniqueId3,Sdict1,Sdict3) :-
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2,Sdict1,Sdict2),
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3,Sdict2,Sdict3),
