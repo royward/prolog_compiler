@@ -297,36 +297,38 @@ ground
 
 get_from_dict(Name,Sdict1,Result,Sdict2) :-
     (get_assoc(Name,Sdict1,Result) -> Sdict2=Sdict1
-    ; Result=k(chased_untagged),put_assoc(Name,Sdict1,Result,Sdict2)).
+    ; Result=k(chased_untagged,type_unknown),put_assoc(Name,Sdict1,Result,Sdict2)).
 
 put_in_dict(Name,Sdict1,Value,Sdict2) :- put_assoc(Name,Sdict1,Value,Sdict2).
 
+%check_var_type(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
+
 check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
-    (PCState0=k(unchased) ->
+    (PCState0=k(unchased,Tp) ->
         write(St,'\t\tp.pointer_chase(tag_'),write(St,Name),write(St,','),write(St,Name),write(St,');\n'),
-        put_in_dict(Name,Sdict2,k(chased_tagged),Sdict3),
+        put_in_dict(Name,Sdict2,k(chased_tagged,Tp),Sdict3),
         (member(Name,Tags1) -> Tags3=Tags1 ; Tags3=[Name|Tags1])
-    ; PCState0=k(chased_untagged) ->
+    ; PCState0=k(chased_untagged,Tp) ->
         write(St,'\t\ttag_'),write(St,Name),write(St,'=('),write(St,Name),write(St,'&TAG_MASK);\n'),
-        put_in_dict(Name,Sdict2,k(chased_tagged),Sdict3),
+        put_in_dict(Name,Sdict2,k(chased_tagged,Tp),Sdict3),
         (member(Name,Tags1) -> Tags3=Tags1 ; Tags3=[Name|Tags1])
     ; Sdict3=Sdict1,Tags3=Tags1).
 
 check_pointer_chase_notag(St,Name,state(Sdict1,Tags),state(Sdict3,Tags)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
-    (PCState0=k(unchased) ->
+    (PCState0=k(unchased,Tp) ->
         write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n'),
-        put_in_dict(Name,Sdict2,k(chased),Sdict3)
+        put_in_dict(Name,Sdict2,k(chased,Tp),Sdict3)
     ; Sdict3=Sdict1).
 
 check_pointer_chase_notag_for_fcall(St,Name,state(Sdict1,Tags),state(Sdict3,Tags)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
-    (PCState0=k(unchased) ->
+    (PCState0=k(unchased,_) ->
         write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n')
     ; true),
-    (PCState0=k(ground) -> Sdict3=Sdict2
-    ; put_in_dict(Name,Sdict2,k(unchased),Sdict3)).
+    (PCState0=k(ground,_) -> Sdict3=Sdict2
+    ; PCState0=k(_,Tp),put_in_dict(Name,Sdict2,k(unchased,Tp),Sdict3)).
 
 check_pointer_chase_notag_for_fcall_list(_,[],_,Sdict,Sdict).
 check_pointer_chase_notag_for_fcall_list(St,[v(N)|ArgRest],DictT,Sdict1,Sdictn) :-
