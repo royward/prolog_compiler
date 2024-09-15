@@ -304,7 +304,7 @@ put_in_dict(Name,Sdict1,Value,Sdict2) :- put_assoc(Name,Sdict1,Value,Sdict2).
 check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
     (PCState0=k(unchased) ->
-        write(St,'\t\ttag_'),write(St,Name),write(St,'=p.pointer_chase('),write(St,Name),write(St,');\n'),
+        write(St,'\t\tp.pointer_chase(tag_'),write(St,Name),write(St,','),write(St,Name),write(St,');\n'),
         put_in_dict(Name,Sdict2,k(chased_tagged),Sdict3),
         (member(Name,Tags1) -> Tags3=Tags1 ; Tags3=[Name|Tags1])
     ; PCState0=k(chased_untagged) ->
@@ -436,14 +436,16 @@ compile_clause_body_args_prep_vars(St,DictT,list(H,T),Used1,Used3) :-
     compile_clause_body_args_prep_vars(St,DictT,T,Used2,Used3).
 
 compile_clause_get_expression(_,_,_,i(I),Name,UniqueId,UniqueId,Sdict1,Sdict1) :- atomics_to_string(['((',I,'<<TAG_WIDTH)+TAG_INTEGER)'],Name).
-compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2,Sdict1,Sdict1) :-
-    UniqueId2 is UniqueId1+1,
-    (nth0(V,DictT,v(K)) ->
-        write(St,'\t\tuint8_t tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,';\n'),
-        write(St,'\t\t\tp.pointer_chase(tag_'),write(St,UniqueId1),write(St,'_var'),write(St,K),write(St,',var'),write(St,K),write(St,');\n'),
-        atomics_to_string(['var',K],Name)
-    ; nth0(V,DictT,a(K2)),atomics_to_string(['arg',K2],Name)),
-    write(St,'\t\tif(('),write_var_from_dictt(St,V,DictT),write(St,'&TAG_MASK)!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
+compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
+    UniqueId2 is UniqueId1,
+    arg_to_atom_for_dict(DictT,V,Name),
+    check_got_tag(St,Name,Sdict1,Sdict2),
+    write(St,'\t\tif(tag_'),write(St,Name),write(St,'!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
+%    (nth0(V,DictT,v(K)) ->
+%        atomic_concat(var,K,V),
+%        atomics_to_string(['var',K],Name)
+%    ; nth0(V,DictT,a(K2)),atomics_to_string(['arg',K2],Name)),
+%    write(St,'\t\tif(('),write_var_from_dictt(St,V,DictT),write(St,'&TAG_MASK)!=TAG_INTEGER) {goto fail_'),write(St,Label),write(St,';}\n').
 compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,UniqueId3,Sdict1,Sdict3) :-
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2,Sdict1,Sdict2),
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3,Sdict2,Sdict3),
