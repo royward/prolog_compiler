@@ -27,11 +27,6 @@
 % OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 % OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-:- consult('../plammar/pack.pl').
-:- use_module(library(plammar)).
-:- use_module(library(plammar/environments)).
-:- use_module(library(cli_table)).
-
 /*
 interpret(file("append.pl"),string("append([1],[],X)."),Results).
 interpret(file("append.pl"),string("append([1,2],[3],X)."),Results).

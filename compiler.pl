@@ -45,7 +45,6 @@ compile(file("nqueens.pl"),string("nqueens_aux([1],[],Q).")).
 compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("nqueens.pl"),string("selectx(X,[1],Y).")).
 compile(file("selectx.pl"),string("selectx(X,[1,2,3,4],Y).")).
-compile(file("selectx.pl"),string("selecty(X,[1,2,3,4],Y).")).
 compile(file("nqueens.pl"),string("nqueens(4,Q).")).
 compile(file("nqueens.pl"),string("nqueens(8,Q).")).
 compile(file("nqueens.pl"),string("nqueens(12,Q).")).
@@ -217,13 +216,16 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     get_var_arg_map(EmptyDictTranslate,DictTranslate0,Args,0,[],Used0),
     fill_var_map(DictTranslate0,DictT,0,LD),
     empty_assoc(Sdictpart),
-    Sdict1=state(Sdictpart,[]),
+    Sdict1=state(Sdictpart,[],[]),
     new_memory_file(MemoryFile),
     open_memory_file(MemoryFile,write,St),
     write(St,'\t\tuint32_t voffset_next=voffset+'),write(St,LD),write(St,';\n'),
     (LD>0 -> write(St,'\t\tuint32_t var0'),compile_clause_args_setup_vars(St,', var',1,LD),write(St,';\n') ; true),
     atomics_to_string(['label_c',NClause],Label),
     fold3(compile_clause_args1(St,DictT,Label),Args,0,_,Used0,Used1,Sdict1,Sdict2),
+    Sdict2=state(_,_,DelayedR),
+    reverse(DelayedR,Delayed),
+    map1fold1(process_delayed(St),Delayed,Sdict2,Sdict3),
     (LP>1 ->
         (NClause1\=LP ->
             (NClause=0 -> write(St,'\t\tif(true') ; write(St,'\t\tif(fs==nullptr')),
@@ -250,7 +252,7 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
         ;   true)
     ; true),
     foldl(compile_clause_body_args_prep_vars(St,DictT),Args,Used1,Used2),
-    fold3(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_,Sdict2,state(_,Tags)),
+    fold3(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_,Sdict3,state(_,Tags,_)),
     write(St,'\t\tvoffset_new=voffset_next;\n'),
     %(LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
     (trace_mode,LP>1 ->
@@ -274,6 +276,23 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     write(Sto,PredBody),
     (LP>1 -> write(Sto,'\t}\n') ; true),
     write(Sto,'next_'),write(Sto,Label),write(Sto,':;\n').
+
+process_delayed_pre(St,[]) :- write(St,'\t\t').
+process_delayed_pre(St,[t(N,equal,Tag)|T]) :-
+    process_delayed_pre(St,T),
+    write(St,'if(tag_'),write(St,N),write(St,'=='),write(St,Tag),write(St,')').
+process_delayed_pre(St,[t(N,notequal,Tag)|T]) :-
+    process_delayed_pre(St,T),
+    write(St,'if(tag_'),write(St,N),write(St,'!='),write(St,Tag),write(St,')').
+
+process_delayed(St,var_set_add_to_unwind_stack_var(Pre,Chase,L,V),Sdict1,Sdict2) :-
+    process_delayed_pre(St,Pre),
+    (Chase -> check_pointer_chase_notag(St,V,Sdict1,Sdict2) ; Sdict2=Sdict1),
+    write(St,'p.var_set_add_to_unwind_stack('),write(St,L),write(St,'>>TAG_WIDTH,'),write(St,V),write(St,');\n').
+process_delayed(St,var_set_add_to_unwind_stack_offset(Pre,Chase,L,V),Sdict1,Sdict2) :-
+    process_delayed_pre(St,Pre),
+    (Chase -> check_pointer_chase_notag(St,V,Sdict1,Sdict2) ; Sdict2=Sdict1),
+    write(St,'p.var_set_add_to_unwind_stack('),write(St,L),write(St,'+voffset,'),write(St,V),write(St,');\n').
 
 compile_clause_args_setup_vars(_,_,N,N).
 compile_clause_args_setup_vars(St,S,M,N) :- M<N,write(St,S),write(St,M),M1 is M+1,compile_clause_args_setup_vars(St,S,M1,N).
@@ -301,14 +320,14 @@ get_from_dict(Name,Sdict1,Result,Sdict2) :-
 
 put_in_dict(Name,Sdict1,Value,Sdict2) :- put_assoc(Name,Sdict1,Value,Sdict2).
 
-check_tag_var_type(St,Name,state(Sdict1,Tags1),state(Sdict4,Tags2),TpSet,Label) :-
-    check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict2,Tags2)),
+check_tag_var_type(St,Name,state(Sdict1,Tags1,Delayed),state(Sdict4,Tags2,Delayed),TpSet,Label) :-
+    check_got_tag(St,Name,state(Sdict1,Tags1,Delayed),state(Sdict2,Tags2,Delayed)),
     get_from_dict(Name,Sdict2,k(X,Tp),Sdict3),
     (Tp=TpSet -> Sdict4=Sdict3
     ;   put_in_dict(Name,Sdict3,k(X,TpSet),Sdict4),
         write(St,'\t\tif(tag_'),write(St,Name),write(St,'!='),write(St,TpSet),write(St,') {goto fail_'),write(St,Label),write(St,';}\n')).
 
-check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
+check_got_tag(St,Name,state(Sdict1,Tags1,Delayed),state(Sdict3,Tags3,Delayed)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
     (PCState0=k(unchased,Tp) ->
         write(St,'\t\tp.pointer_chase(tag_'),write(St,Name),write(St,','),write(St,Name),write(St,');\n'),
@@ -320,14 +339,14 @@ check_got_tag(St,Name,state(Sdict1,Tags1),state(Sdict3,Tags3)) :-
         (member(Name,Tags1) -> Tags3=Tags1 ; Tags3=[Name|Tags1])
     ; Sdict3=Sdict1,Tags3=Tags1).
 
-check_pointer_chase_notag(St,Name,state(Sdict1,Tags),state(Sdict3,Tags)) :-
+check_pointer_chase_notag(St,Name,state(Sdict1,Tags,Delayed),state(Sdict3,Tags,Delayed)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
     (PCState0=k(unchased,Tp) ->
         write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n'),
         put_in_dict(Name,Sdict2,k(chased,Tp),Sdict3)
     ; Sdict3=Sdict1).
 
-check_pointer_chase_notag_for_fcall(St,Name,state(Sdict1,Tags),state(Sdict3,Tags)) :-
+check_pointer_chase_notag_for_fcall(St,Name,state(Sdict1,Tags,Delayed),state(Sdict3,Tags,Delayed)) :-
     get_from_dict(Name,Sdict1,PCState0,Sdict2),
     (PCState0=k(unchased,_) ->
         write(St,'\t\tp.pointer_chase_notag('),write(St,Name),write(St,');\n')
@@ -347,26 +366,31 @@ check_pointer_chase_notag_for_fcall_list(St,[eol|ArgRest],DictT,Sdict1,Sdict2) :
 check_pointer_chase_notag_for_fcall_list(St,[i(_)|ArgRest],DictT,Sdict1,Sdict2) :-
     check_pointer_chase_notag_for_fcall_list(St,ArgRest,DictT,Sdict1,Sdict2).
 
+add_delayed_instruction(state(D,T,Delayed),state(D,T,[V|Delayed]),V).
+
 compile_clause_args1(St,DictT,Label,X,N,N1,Used1,Used2,Sdict1,Sdict2) :-
     N1 is N+1,
     atomics_to_string(['arg',N],Argname),
-    compile_clause_args1_aux(St,DictT,Label,X,Argname,Used1,Used2,Sdict1,Sdict2).
+    compile_clause_args1_aux(St,DictT,Label,X,Argname,Used1,Used2,Sdict1,Sdict2,[]).
 
-compile_clause_args1_aux(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2) :-
-    compile_clause_args1_aux2(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2),
+compile_clause_args1_aux(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2,Pre) :-
+    compile_clause_args1_aux2(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2,Pre),
     write(St,'s_'),write(St,Label),write(St,'_'),write(St,N),write(St,':;\n').
 
-compile_clause_args1_aux2(St,_,Label,eol,N,Used1,Used1,Sdict1,Sdict2) :-
+compile_clause_args1_aux2(St,_,Label,eol,N,Used1,Used1,Sdict1,Sdict3,Pre) :-
     check_got_tag(St,N,Sdict1,Sdict2),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_EOL) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,TAG_EOL);\n').
-compile_clause_args1_aux2(St,_,Label,i(I),N,Used1,Used1,Sdict1,Sdict2) :-
+    add_delayed_instruction(Sdict2,Sdict3,var_set_add_to_unwind_stack_var([t(N,notequal,'TAG_EOL')|Pre],false,N,'TAG_EOL')).
+    %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,TAG_EOL);\n').
+compile_clause_args1_aux2(St,_,Label,i(I),N,Used1,Used1,Sdict1,Sdict3,Pre) :-
     check_got_tag(St,N,Sdict1,Sdict2),
     write(St,'\t\tif('),write(St,N),write(St,'==('),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),write(St,';}\n'),
-    write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,I),write(St,'<<TAG_WIDTH)+TAG_INTEGER);\n').
-compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn) :-
+    concat_atom([I,'<<TAG_WIDTH)+TAG_INTEGER'],R),
+    add_delayed_instruction(Sdict2,Sdict3,var_set_add_to_unwind_stack_var(Pre,false,N,R)).
+    %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,I),write(St,');\n').
+compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn,Pre) :-
     (member(V,Used1) ->
         Used2=Used1,
         (nth0(V,DictT,a(NN)),atomics_to_string(['arg',NN],N) -> Sdictn=Sdict1
@@ -375,27 +399,29 @@ compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn) :-
             check_pointer_chase_notag_for_fcall(St,N,Sdict2,Sdictn),
             write(St,'\t\tif(!p.unify('),write(St,VV),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
     ;
-        Used2=[V|Used1],Sdict3=Sdict1,
+        Used2=[V|Used1],
         nth0(V,DictT,v(K)),
         write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,N),write(St,';\n'),
-        check_pointer_chase_notag(St,N,Sdict3,Sdictn),
-        write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
+        %check_pointer_chase_notag(St,N,Sdict1,Sdict2),
+        add_delayed_instruction(Sdict1,Sdictn,var_set_add_to_unwind_stack_offset(Pre,true,V,N))
+        %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
     ).
-compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdict4) :-
+compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdictn,_) :-
     check_got_tag(St,N,Sdict1,Sdict1a),
     H=v(Vh),
     atomics_to_string([N,'h'],ArgH),
     atomics_to_string([N,'t'],ArgT),
-    write(St,'\t\tuint32_t '),write(St,ArgH),write(St,', '),write(St,ArgT),write(St,';\n'),
+    write(St,'\t\tuint32_t '),write(St,N),write(St,'lc, '),write(St,ArgH),write(St,', '),write(St,ArgT),write(St,';\n'),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_LIST) {\n'),
     write(St,'\t\tList& '),write(St,N),write(St,'l=p.list_values['),write(St,N),write(St,'>>TAG_WIDTH];\n'),
     write(St,'\t\t'),write(St,ArgH),write(St,'='),write(St,N),write(St,'l.head;\n'),
     write(St,'\t\tp.pointer_chase_notag('),write(St,ArgH),write(St,');\n'),
-    compile_clause_args1_aux(St,DictT,Label,H,ArgH,Used1,Used2,Sdict1a,Sdict2),
+    compile_clause_args1_aux(St,DictT,Label,H,ArgH,Used1,Used2,Sdict1a,Sdict2,[t(N,notequal,'TAG_VREF')]),
     write(St,'\t\t'),write(St,ArgT),write(St,'='),write(St,N),write(St,'l.tail;\n'),
     write(St,'\t\tp.pointer_chase_notag('),write(St,ArgT),write(St,');\n'),
-    compile_clause_args1_aux(St,DictT,Label,T,ArgT,Used2,Used3,Sdict2,Sdict3),
+    compile_clause_args1_aux(St,DictT,Label,T,ArgT,Used2,Used3,Sdict2,Sdict3,[t(N,notequal,'TAG_VREF')]),
     write(St,'\t\t} else if(tag_'),write(St,N),write(St,'==TAG_VREF) {\n'),
+    concat_atom([N,'lc'],R),
     (member(Vh,Used1) -> Used1a=Used1 ;
         Used1a=[Vh|Used1],
         nth0(Vh,DictT,X),
@@ -408,13 +434,14 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdict4) 
             nth0(Vt,DictT,v(K2)),
             write(St,'\t\tvar'),write(St,K2),write(St,'=('),write(St,K2),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
             write(St,'\t\tp.variables['),write(St,K2),write(St,'+voffset]=TAG_VAR;\n')),
-        write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),
+            write(St,'\t\t'),write(St,N),write(St,'lc=p.plcreate_list('),
         write_var_from_dictt(St,Vh,DictT),write(St,','),write_var_from_dictt(St,Vt,DictT),write(St,');\n')
     ; T=eol ->
-        write(St,'\t\tuint32_t '),write(St,N),write(St,'lc=p.plcreate_list('),write_var_from_dictt(St,Vh,DictT),write(St,',TAG_EOL);\n')
+        write(St,N),write(St,'lc=p.plcreate_list('),write_var_from_dictt(St,Vh,DictT),write(St,',TAG_EOL);\n')
     ; false),
-    check_pointer_chase_notag(St,N,Sdict3,Sdict4),
-    write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
+    %check_pointer_chase_notag(St,N,Sdict3,Sdict4),
+    add_delayed_instruction(Sdict3,Sdictn,var_set_add_to_unwind_stack_var([t(N,equal,'TAG_VREF')],true,N,R)),
+    %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
     write(St,'\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
 compile_clause_body_args_with_comma(St,DictT,X) :- write(St,', '),compile_clause_body_args(St,DictT,X).
@@ -446,7 +473,6 @@ compile_clause_get_expression(_,_,_,i(I),Name,UniqueId,UniqueId,Sdict1,Sdict1) :
 compile_clause_get_expression(St,DictT,Label,v(V),Name,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
     UniqueId2 is UniqueId1,
     arg_to_atom_for_dict(DictT,V,Name),
-    %check_got_tag(St,Name,Sdict1,Sdict2),
     check_tag_var_type(St,Name,Sdict1,Sdict2,'TAG_INTEGER',Label).
 compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,UniqueId3,Sdict1,Sdict3) :-
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2,Sdict1,Sdict2),
@@ -486,16 +512,18 @@ compile_clause_body(St,DictT,Label,_,_,_,function(test_neq,A1,A2),Used,Used,Uniq
     compile_clause_get_expression(St,DictT,Label,A1,Name1,UniqueId1,UniqueId2,Sdict1,Sdict2),
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3,Sdict2,Sdict3),
     write(St,'\t\tif('),write(St,Name1),write(St,'=='),write(St,Name2),write(St,') {goto fail_'),write(St,Label),write(St,';}\n').
-compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2,Sdict1,Sdict3) :-
+compile_clause_body(St,DictT,Label,_,_,_,function(assign,v(V),A2),Used1,Used2,UniqueId1,UniqueId2,Sdict1,Sdict4) :-
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId1,UniqueId2,Sdict1,Sdict2),
     (member(V,Used1) ->
         Used2=Used1,
+        Sdict4=Sdict2,
         write(St,'\t\tif(!'),write_var_from_dictt(St,V,DictT),write(St,'!='),write(St,Name2),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n')
     ;
         Used2=[V|Used1],
         nth0(V,DictT,v(K)),
         atomic_concat(var,K,Name),
-        check_pointer_chase_notag(St,Name,Sdict2,Sdict3),
         write(St,'\t\t'),write(St,Name),write(St,'='),write(St,Name2),write(St,';\n'),
+        check_pointer_chase_notag(St,Name,Sdict2,Sdict4),
+        %add_delayed_instruction(Sdict2,Sdict4,var_set_add_to_unwind_stack_offset(true,K,Name))
         write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,K),write(St,'+voffset,'),write(St,Name),write(St,');\n')
     ).

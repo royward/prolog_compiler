@@ -59,6 +59,10 @@ append_to_nth(N,V,[H|T1],[H|T2]) :-  N>0,N1 is N-1,append_to_nth(N1,V,T1,T2).
 map_fold1(_,[],[],A,A).
 map_fold1(Pred,[X|Xt],[Y|Yt],A1,A3) :- call(Pred,X,Y,A1,A2),map_fold1(Pred,Xt,Yt,A2,A3).
 
+% map1fold1(Pred,List,AccIn,AccOut).
+map1fold1(_,[],A,A).
+map1fold1(Pred,[X|Xt],A1,A3) :- call(Pred,X,A1,A2),map1fold1(Pred,Xt,A2,A3).
+
 % map_fold2(Pred,ListIn,Listout,AccIn,AccOut,BccIn,BccOut).
 map_fold2(_,[],[],A,A,B,B).
 map_fold2(Pred,[X|Xs],[Y|Ys],A1,A3,B1,B3) :- call(Pred,X,Y,A1,A2,B1,B2),map_fold2(Pred,Xs,Ys,A2,A3,B2,B3).
