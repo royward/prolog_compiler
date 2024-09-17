@@ -410,11 +410,9 @@ compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn,Pre) :
         (nth0(V,DictT,a(NN)),atomics_to_string(['arg',NN],N) -> Sdictn=Sdict1
         ;   arg_to_atom_for_dict(DictT,V,VV),
             check_pointer_chase_notag_for_fcall(St,VV,Sdict1,Sdict2),
-            check_pointer_chase_notag_for_fcall(St,N,Sdict2,Sdict3),
-            do_process_delayed(St,Sdict3,Sdictn),
-            write(St,'\t\tif(!p.unify('),write(St,VV),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),
-            (Sdictn=state(_,_,_,true) -> true ; write(St,'_no_unwind')),
-            write(St,';}\n'))
+            check_pointer_chase_notag_for_fcall(St,N,Sdict2,state(D,T,DelayedR,_)),
+            Sdictn=state(D,T,DelayedR,true),
+            write(St,'\t\tif(!p.unify('),write(St,VV),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
     ;
         Used2=[V|Used1],
         nth0(V,DictT,v(K)),
