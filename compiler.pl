@@ -530,7 +530,7 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
         write(St,'\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St,DictT),Args),
         write(St,', voffset_next, voffset_next, parent_frame);\n'),
-        write(St,'\t\tp.pop_frame_stack_track_parent(parent_frame);\n'),
+        (LP>1 -> write(St,'\t\tp.pop_frame_stack_track_parent(parent_frame);\n') ; true),
         write(St,'\t\tif(!found) {goto fail_'),write(St,Label),
         (Sdict2=state(_,_,_,true) -> true ; write(St,'_no_unwind')),
         write(St,';}\n'))

@@ -1,4 +1,4 @@
-CXX:=g++
+CXX:=clang++
 
 FLAGS:= -DUSE_AVX=1
 OPT:= -ggdb3 -mavx
