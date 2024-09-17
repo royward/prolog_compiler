@@ -223,36 +223,31 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     (LD>0 -> write(St,'\t\tuint32_t var0'),compile_clause_args_setup_vars(St,', var',1,LD),write(St,';\n') ; true),
     atomics_to_string(['label_c',NClause],Label),
     fold3(compile_clause_args1(St,DictT,Label),Args,0,_,Used0,Used1,Sdict1,Sdict2),
-    Sdict2=state(_,_,DelayedR),
-    reverse(DelayedR,Delayed),
-    map1fold1(process_delayed(St),Delayed,Sdict2,Sdict3),
-    (LP>1 ->
-        (NClause1\=LP ->
-            (NClause=0 -> write(St,'\t\tif(true') ; write(St,'\t\tif(fs==nullptr')),
-            foldl(compile_args_conditions(St),MRow,0,_),
-            write(St,') {\n'),
-            write(St,'\t\t\tfs=&p.frames[++p.frame_top];\n'),
-            write(St,'\t\t\tfs->clause_index='),write(St,NClause),write(St,';\n'),
-            write(St,'\t\t\tfunction_frame_top=p.frame_top;\n'),
-            write(St,'\t\t\tfs->clause_count='),write(St,LP),write(St,';\n'),
-            write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
-            write(St,'\t\t\tparent_frame=p.frame_top;\n'),
-            write(St,'\t\t\tfs=p.process_stack_state_load_save(0);\n'),
-            write(St,'\t\t\tfs->clause_index++;\n'),
-            write(St,'\t\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
-            write(St,'\t\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
-            %write(St,'\t\t\t\tparent_frame=p.frame_top;\n'),
-            write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
-            (trace_mode ->
-                write(St,'\t\t\t} else {\n'),
-                write(St,'\t\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n')
-            ; true),
-            write(St,'\t\t\t}\n'),
-            write(St,'\t\t}\n')
-        ;   true)
-    ; true),
+    (LP>1, NClause1\=LP ->
+        (NClause=0 -> write(St,'\t\tif(true') ; write(St,'\t\tif(fs==nullptr')),
+        foldl(compile_args_conditions(St),MRow,0,_),
+        write(St,') {\n'),
+        write(St,'\t\t\tfs=&p.frames[++p.frame_top];\n'),
+        write(St,'\t\t\tfs->clause_index='),write(St,NClause),write(St,';\n'),
+        write(St,'\t\t\tfunction_frame_top=p.frame_top;\n'),
+        write(St,'\t\t\tfs->clause_count='),write(St,LP),write(St,';\n'),
+        write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
+        write(St,'\t\t\tparent_frame=p.frame_top;\n'),
+        write(St,'\t\t\tfs=p.process_stack_state_load_save(0);\n'),
+        write(St,'\t\t\tfs->clause_index++;\n'),
+        write(St,'\t\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
+        write(St,'\t\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
+        %write(St,'\t\t\t\tparent_frame=p.frame_top;\n'),
+        write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
+        write(St,'\t\t\t} else {\n'),
+        (trace_mode -> write(St,'\t\t\t\tstd::cout << "=== saved continuation " << p.frame_top << std::endl;\n') ; true),
+        do_process_delayed(St,Sdict2,Sdict3),
+        write(St,'\t\t\t}\n'),
+        write(St,'\t\t}\n')
+    ; Sdict3=Sdict2),
     foldl(compile_clause_body_args_prep_vars(St,DictT),Args,Used1,Used2),
-    fold3(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_,Sdict3,state(_,Tags,_)),
+    fold3(compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts),Body,Used2,_,0,_,Sdict3,Sdictn),
+    do_process_delayed(St,Sdictn,state(_,Tags,_)),
     write(St,'\t\tvoffset_new=voffset_next;\n'),
     %(LP>1 -> write(St,'\t\tp.pop_frame_stack();\n') ; true),
     (trace_mode,LP>1 ->
@@ -380,6 +375,13 @@ compile_clause_args1_aux(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2,Pre) :-
     compile_clause_args1_aux2(St,DictT,Label,X,N,Used1,Used2,Sdict1,Sdict2,Pre),
     write(St,'s_'),write(St,Label),write(St,'_'),write(St,N),write(St,':;\n').
 
+do_process_delayed(St,Sdict1,Sdict3) :-
+    Sdict1=state(_,_,DelayedR),
+    reverse(DelayedR,Delayed),
+    map1fold1(process_delayed(St),Delayed,Sdict1,Sdict2),
+    Sdict2=state(D,T,DelayedR),
+    Sdict3=state(D,T,[]).
+
 compile_clause_args1_aux2(St,_,Label,eol,N,Used1,Used1,Sdict1,Sdict3,Pre) :-
     check_got_tag(St,N,Sdict1,Sdict2),
     write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_EOL) {goto s_'),write(St,Label),write(St,'_'),write(St,N),write(St,';}\n'),
@@ -399,7 +401,8 @@ compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn,Pre) :
         (nth0(V,DictT,a(NN)),atomics_to_string(['arg',NN],N) -> Sdictn=Sdict1
         ;   arg_to_atom_for_dict(DictT,V,VV),
             check_pointer_chase_notag_for_fcall(St,VV,Sdict1,Sdict2),
-            check_pointer_chase_notag_for_fcall(St,N,Sdict2,Sdictn),
+            check_pointer_chase_notag_for_fcall(St,N,Sdict2,Sdict3),
+            do_process_delayed(St,Sdict3,Sdictn),
             write(St,'\t\tif(!p.unify('),write(St,VV),write(St,','),write(St,N),write(St,')) {goto fail_'),write(St,Label),write(St,';}\n'))
     ;
         Used2=[V|Used1],
@@ -487,7 +490,8 @@ compile_clause_get_expression(St,DictT,Label,function(add,A1,A2),Name,UniqueId1,
     compile_clause_get_expression(St,DictT,Label,A2,Name2,UniqueId2,UniqueId3,Sdict2,Sdict3),
     atomics_to_string(['(',Name1,'+',Name2,'-TAG_INTEGER)'],Name).
 
-compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2,Sdict1,Sdict2) :-
+compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1,Used2,UniqueId1,UniqueId2,Sdict0,Sdict2) :-
+    do_process_delayed(St,Sdict0,Sdict1),
     nth0(Index,Pdict,f(Name,Arity)),
     nth0(Index,ClauseCounts,ClauseCountThis),
     (ClauseCountThis>1 ->
