@@ -293,6 +293,9 @@ process_delayed(St,var_set_add_to_unwind_stack_offset(Pre,Chase,L,V),Sdict1,Sdic
     process_delayed_pre(St,Pre),
     (Chase -> check_pointer_chase_notag(St,V,Sdict1,Sdict2) ; Sdict2=Sdict1),
     write(St,'p.var_set_add_to_unwind_stack('),write(St,L),write(St,'+voffset,'),write(St,V),write(St,');\n').
+process_delayed(St,create_list(Pre,N,H,T),Sdict1,Sdict1) :-
+    process_delayed_pre(St,Pre),
+    write(St,N),write(St,'lc=p.plcreate_list('),write(St,H),write(St,','),write(St,T),write(St,');\n').
 
 compile_clause_args_setup_vars(_,_,N,N).
 compile_clause_args_setup_vars(St,S,M,N) :- M<N,write(St,S),write(St,M),M1 is M+1,compile_clause_args_setup_vars(St,S,M1,N).
@@ -434,13 +437,18 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdictn,_
             nth0(Vt,DictT,v(K2)),
             write(St,'\t\tvar'),write(St,K2),write(St,'=('),write(St,K2),write(St,'<<TAG_WIDTH)+TAG_VREF'),write(St,'+(voffset<<TAG_WIDTH);\n'),
             write(St,'\t\tp.variables['),write(St,K2),write(St,'+voffset]=TAG_VAR;\n')),
-            write(St,'\t\t'),write(St,N),write(St,'lc=p.plcreate_list('),
-        write_var_from_dictt(St,Vh,DictT),write(St,','),write_var_from_dictt(St,Vt,DictT),write(St,');\n')
+        arg_to_atom_for_dict(DictT,Vh,Head),
+        arg_to_atom_for_dict(DictT,Vt,Tail),
+        %write(St,'\t\t'),write(St,N),write(St,'lc=p.plcreate_list('),
+        %write_var_from_dictt(St,Vh,DictT),write(St,','),write_var_from_dictt(St,Vt,DictT),write(St,');\n')
+        add_delayed_instruction(Sdict3,Sdict4,create_list([t(N,equal,'TAG_VREF')],N,Head,Tail))
     ; T=eol ->
-        write(St,N),write(St,'lc=p.plcreate_list('),write_var_from_dictt(St,Vh,DictT),write(St,',TAG_EOL);\n')
+        %write(St,N),write(St,'lc=p.plcreate_list('),write_var_from_dictt(St,Vh,DictT),write(St,',TAG_EOL);\n')
+        arg_to_atom_for_dict(DictT,Vh,Head),
+        add_delayed_instruction(Sdict3,Sdict4,create_list([t(N,equal,'TAG_VREF')],N,Head,'TAG_EOL'))
     ; false),
     %check_pointer_chase_notag(St,N,Sdict3,Sdict4),
-    add_delayed_instruction(Sdict3,Sdictn,var_set_add_to_unwind_stack_var([t(N,equal,'TAG_VREF')],true,N,R)),
+    add_delayed_instruction(Sdict4,Sdictn,var_set_add_to_unwind_stack_var([t(N,equal,'TAG_VREF')],true,N,R)),
     %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,N),write(St,'lc);\n'),
     write(St,'\t\t} else {goto fail_'),write(St,Label),write(St,';}\n').
 
