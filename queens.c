@@ -1,46 +1,47 @@
-// A version of nqueens written directly in C for speed comparison.
-// https://gist.github.com/rohit-nsit08/1183731
+#include <stdio.h>
+#include <stdlib.h>
 
-#include<stdio.h>
-#include<stdlib.h>
+#define N 14
 
-#define SIZE 12
+int solutions = 0;
 
-int t[SIZE] = {-1};
-int sol = 1;
+// This function checks if placing a queen at board[row][col] is safe
+int isSafe(int board[], int row, int col) {
+    for (int i = 0; i < row; i++) {
+        if (board[i] == col ||                    // Check same column
+            board[i] - i == col - row ||          // Check main diagonal
+            board[i] + i == col + row) {          // Check anti-diagonal
+            return 0;
+        }
+    }
+    return 1;
+}
 
-void printsol()
-{
-	for(int i=0;i<SIZE;i++)
-	{
-		printf("%d,",t[i]+1);
+// This function uses backtracking to place queens
+void solveNQueens(int board[], int row) {
+    if (row == N) {
+        // If all queens are placed, print solution
+        solutions++;
+        printf("[");
+		printf("%d,",board[0]);
+        for (int i = 1; i < N; i++) {
+            printf(",%d",board[i]);
+        }
+        printf("]\n");
+        return;
+    }
+
+    for (int col = 0; col < N; col++) {
+        if (isSafe(board, row, col)) {
+            board[row] = col;
+            solveNQueens(board, row + 1);  // Recur to place the rest of the queens
+        }
     }
 }
-int empty(int i)
-{
-	int j=0;
-	while((t[i]!=t[j])&&(abs(t[i]-t[j])!=(i-j))&&j<SIZE)j++;
-	return i==j?1:0;
-}
 
-void queens(int i)
-{
-	for(t[i] = 0;t[i]<SIZE;t[i]++)
-	{
-		if(empty(i))
-		{
-			if(i==SIZE-1){
-				printsol();
-				printf("\n");
-			}
-			else
-			queens(i+1);
-		}
-	}
-}
-
-int main()
-{
-	queens(0);
-	return 0;
+int main() {
+    int board[N];  // Array to store the position of queens
+    solveNQueens(board, 0);
+    printf("Total solutions: %d\n", solutions);
+    return 0;
 }

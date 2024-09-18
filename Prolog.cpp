@@ -86,11 +86,6 @@ bool Prolog::unify(uint32_t val1, uint32_t val2) {
     }
 }
 
-void Prolog::delete_list_cell(uint32_t cell) {
-    list_values[cell].head=freelist_list;
-    freelist_list=cell;
-}
-
 uint32_t Prolog::plcreate_eol() {
     return TAG_EOL;
 }
@@ -104,13 +99,6 @@ uint32_t Prolog::plcreate_var(uint32_t i) {
         top_variables=i+1;
     }
     return (i<<TAG_WIDTH)+TAG_VREF;
-}
-
-uint32_t Prolog::plcreate_list(uint32_t h, uint32_t t) {
-    uint32_t l=get_list_cell();
-    list_values[l].head=h;
-    list_values[l].tail=t;
-    return (l<<TAG_WIDTH)+TAG_LIST;
 }
 
 std::string Prolog::pldisplay(uint32_t i) {
@@ -244,6 +232,17 @@ void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
     }
 }
 
+void Prolog::gc_list(uint32_t v) {
+    List& l=list_values[v];
+    if((l.head&TAG_MASK)==TAG_LIST) {
+        gc_list(l.head>>TAG_WIDTH);
+    }
+    if((l.tail&TAG_MASK)==TAG_LIST) {
+        gc_list(l.tail>>TAG_WIDTH);
+    }
+    delete_list_cell(v);
+}
+
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, uint32_t& parent) {
     pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
@@ -252,10 +251,12 @@ void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, 
 #endif
         process_stack_state_load_save(frame_top);
     }
-    //std::cout << "unwind_stack_revert_to_mark " << bottom << ':' << top_unwind_stack_decouple << std::endl;
     for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-        //std::cout << "unwind " << unwind_stack_decouple[i] << std::endl;
-        variables[unwind_stack_decouple[i]]=TAG_VAR;
+        uint32_t& var=variables[unwind_stack_decouple[i]];
+        // if((var&TAG_MASK)==TAG_LIST) {
+        //     gc_list(var>>TAG_WIDTH);
+        // }
+        var=TAG_VAR;
     }
     top_unwind_stack_decouple=bottom;
 }

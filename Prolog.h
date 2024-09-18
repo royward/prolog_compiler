@@ -110,12 +110,20 @@ loop:
         freelist_list=list_values[freelist_list].head;
         return ret;
     }
-    void delete_list_cell(uint32_t cell);
+    void delete_list_cell(uint32_t cell) {
+        list_values[cell].head=freelist_list;
+        freelist_list=cell;
+    }
     void __do_start();
     uint32_t plcreate_eol();
     uint32_t plcreate_int(uint32_t i);
     uint32_t plcreate_var(uint32_t i);
-    uint32_t plcreate_list(uint32_t h, uint32_t t);
+    uint32_t plcreate_list(uint32_t h, uint32_t t) {
+        uint32_t l=get_list_cell();
+        list_values[l].head=h;
+        list_values[l].tail=t;
+        return (l<<TAG_WIDTH)+TAG_LIST;
+    }
     std::string pldisplay(uint32_t x);
     void process_stack_state(FrameStore* fs);
     FrameStore* process_stack_state_load_save(int flag);
@@ -132,6 +140,7 @@ loop:
         variables[v]=val;
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
     };
+    void gc_list(uint32_t l);
     uint8_t* base_sp=0;
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=(uint32_t*)malloc(4*STACK_SIZES);
