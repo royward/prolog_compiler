@@ -33,13 +33,16 @@
 #include <sstream>
 #include <cstdio>
 
+#define HASGC 1
+
 const static int64_t STACK_SIZES=200000000;
 
 static const uint8_t TAG_VREF=0b000;
 static const uint8_t TAG_VAR=0b001;
-static const uint8_t TAG_LIST=0b010;
-static const uint8_t TAG_EOL=0b110;
-static const uint8_t TAG_INTEGER=0b100;
+static const uint8_t TAG_EOL=0b010;
+static const uint8_t TAG_INTEGER=0b011;
+static const uint8_t TAG_LIST=0b110;
+static const uint8_t TAG_VAR_LIST=0b111;
 static const uint32_t TAG_MASK=0b111;
 static const uint32_t TAG_WIDTH=3;
 
@@ -66,6 +69,7 @@ struct FrameStore {
     int32_t clause_count;
     uint8_t* stack_bottom;
     uint32_t unwind_stack_decouple_mark;
+    uint32_t unwind_stack_gc_mark;
     uint32_t call_depth;
 };
 
@@ -104,13 +108,18 @@ loop:
     bool unify(uint32_t val1, uint32_t val2);
     inline uint32_t get_list_cell() {
         if(freelist_list==0) {
+            unwind_stack_gc[top_unwind_stack_gc++]=top_list_values;
+            //std::cout << "get_list_cellA:" << top_list_values << std::endl;
             return top_list_values++;
         }
         uint32_t ret=freelist_list;
         freelist_list=list_values[freelist_list].head;
+        unwind_stack_gc[top_unwind_stack_gc++]=ret;
+        //std::cout << "get_list_cellB:" << ret << std::endl;
         return ret;
     }
     void delete_list_cell(uint32_t cell) {
+        //std::cout << "delete_list_cell:" << cell << std::endl;
         list_values[cell].head=freelist_list;
         freelist_list=cell;
     }
@@ -131,24 +140,40 @@ loop:
     uint32_t process_stack_state_load_aux(uint32_t parent);
     void pop_frame_stack();
     void pop_frame_stack_track_parent(uint32_t& parent);
-    void unwind_stack_revert_to_mark(uint32_t mark, uint32_t call_depth, uint32_t& parent);
+    void unwind_stack_revert_to_mark(uint32_t decouple_mark, uint32_t gc_mark, uint32_t call_depth, uint32_t& parent);
     void pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i);
-    // inline void var_set(uint32_t v, uint32_t val) {
-    //     variables[v]=val;
-    // };
     inline void var_set_add_to_unwind_stack(uint32_t v, uint32_t val) {
+        //if((val&TAG_MASK)==TAG_LIST)std::cout << "tag: " << v << ":" << val << std::endl;
         variables[v]=val;
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
     };
-    void gc_list(uint32_t l);
+    inline void var_set_add_to_unwind_stack_nogc(uint32_t v, uint32_t val) {
+        variables[v]=val|((val>>2)&1);
+        unwind_stack_decouple[top_unwind_stack_decouple++]=v;
+    };
+    inline void unwind_stack_revert_to_mark_only(uint32_t bottom_decouple, uint32_t bottom_gc) {
+        //std::cout << bottom_decouple << "::" << top_unwind_stack_decouple << std::endl;
+        for(uint32_t i=bottom_decouple;i<top_unwind_stack_decouple;i++) {
+            uint32_t& var=variables[unwind_stack_decouple[i]];
+            var=TAG_VAR;
+        }
+        top_unwind_stack_decouple=bottom_decouple;
+        for(uint32_t i=bottom_gc;i<top_unwind_stack_gc;i++) {
+            delete_list_cell(unwind_stack_gc[i]);
+       }
+        top_unwind_stack_gc=bottom_gc;
+    };
     uint8_t* base_sp=0;
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=(uint32_t*)malloc(4*STACK_SIZES);
     uint32_t* unwind_stack_decouple=(uint32_t*)malloc(4*STACK_SIZES);
+    uint32_t* unwind_stack_gc=(uint32_t*)malloc(4*STACK_SIZES);
     uint32_t top_unwind_stack_decouple=0;
+    uint32_t top_unwind_stack_gc=0;
     uint32_t stack_used=0;
     uint32_t top_variables=0;
     uint32_t top_list_values=1; // don't use 0, so that can be freelist stop
+    uint32_t static_list_variables;
     uint32_t freelist_list=0;
     uint32_t function_frame_top_last_n_clause;
     List* list_values=(List*)malloc(STACK_SIZES*sizeof(List));

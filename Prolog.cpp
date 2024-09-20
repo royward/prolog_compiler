@@ -1,10 +1,6 @@
 #include <immintrin.h>
 #include <cstdio>
 
-/*
-Data structures:
-uint32_t variables[]
-uint64_t list_values[]
 // BSD 3-Clause License
 //
 // Copyright (c) 2024, Roy Ward
@@ -34,17 +30,6 @@ uint64_t list_values[]
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-uint32_t unwind_stack_decouple[]
-uint32_t unwind_stack_delete[]
-Tags in low bits - tags are not for that type, but for the type that it is pointing to:
-......000 vref (chase these ones)
-......001 ununified vref
-......010 list
-......110 eol
-......100 integer
-*/
-// pre: tag2:001, &val2=0
-// pre: tag1:100, val1=value;
 #include "Prolog.h"
 #include <sstream>
 #include <cstring>
@@ -58,19 +43,20 @@ bool Prolog::unify(uint32_t val1, uint32_t val2) {
     uint8_t tag2=val2&TAG_MASK;;
     //pointer_chase(tag2,val2);
     if(tag2==TAG_VREF) {
-        variables[(val2>>TAG_WIDTH)]=val1;
+        variables[(val2>>TAG_WIDTH)]=val1|(tag1>>2); //  tag 110->111
         unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>TAG_WIDTH;
         return true;
     }
     if(tag1==TAG_VREF) {
-        variables[(val1>>TAG_WIDTH)]=val2;
+        variables[(val1>>TAG_WIDTH)]=val2|(tag2>>2); //  tag 110->111
         unwind_stack_decouple[top_unwind_stack_decouple++]=(val1>>TAG_WIDTH);
         return true;
     }
-    if(tag1!=tag2) {
+    if(tag1!=tag2 && tag1+tag2!=13) {
         return false;
     }
     switch(tag1) {
+        case TAG_VAR_LIST:
         case TAG_LIST: {
             List& l1=list_values[val1>>TAG_WIDTH];
             List& l2=list_values[val2>>TAG_WIDTH];
@@ -121,6 +107,7 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
         case TAG_VREF: {
             ss << '_' << v;
         } break;
+        case TAG_VAR_LIST:
         case TAG_LIST: {
             if(!in_list) {
                 ss << '[';
@@ -181,16 +168,16 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
 #endif
     }
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
+    fs->unwind_stack_gc_mark=top_unwind_stack_gc;
 }
 
 uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_t parent) {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_top];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
-        uint32_t bottom=fs_low->unwind_stack_decouple_mark;
-        for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-            variables[unwind_stack_decouple[i]]=TAG_VAR;
-        }
+        uint32_t bottom_decouple=fs_low->unwind_stack_decouple_mark;
+        uint32_t bottom_gc=fs_low->unwind_stack_gc_mark;
+        unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
     }
     uint32_t frame_count=0;
     scratch_buf[frame_count++]=frame_top;
@@ -232,18 +219,7 @@ void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
     }
 }
 
-void Prolog::gc_list(uint32_t v) {
-    List& l=list_values[v];
-    if((l.head&TAG_MASK)==TAG_LIST) {
-        gc_list(l.head>>TAG_WIDTH);
-    }
-    if((l.tail&TAG_MASK)==TAG_LIST) {
-        gc_list(l.tail>>TAG_WIDTH);
-    }
-    delete_list_cell(v);
-}
-
-void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, uint32_t& parent) {
+void Prolog::unwind_stack_revert_to_mark(uint32_t bottom_decouple, uint32_t bottom_gc, uint32_t frame_depth, uint32_t& parent) {
     pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
 #if TRACE
@@ -251,18 +227,22 @@ void Prolog::unwind_stack_revert_to_mark(uint32_t bottom, uint32_t frame_depth, 
 #endif
         process_stack_state_load_save(frame_top);
     }
-    for(uint32_t i=bottom;i<top_unwind_stack_decouple;i++) {
-        uint32_t& var=variables[unwind_stack_decouple[i]];
-        // if((var&TAG_MASK)==TAG_LIST) {
-        //     gc_list(var>>TAG_WIDTH);
-        // }
-        var=TAG_VAR;
-    }
-    top_unwind_stack_decouple=bottom;
+    unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
+    //top_unwind_stack_decouple=bottom_decouple;
+    //top_unwind_stack_gc=bottom_gc;
 }
 
 int main() {
     Prolog p;
     p.__do_start();
+    p.unwind_stack_revert_to_mark_only(0,0);
+    uint32_t acc=0;
+    uint32_t v=p.freelist_list;
+    while(v!=0) {
+        acc++;
+        v=p.list_values[v].head;
+    }
+    std::cout << "Used list cells=" <<acc<<std::endl;
+    std::cout << "Max list cells=" <<p.top_list_values-p.static_list_variables<<std::endl;
     return 0;
 }

@@ -67,6 +67,7 @@ compile(RawProgram,RawGoal) :-
     maplist(write_function_template(St),Pdict),nl(St),
     write(St,'void Prolog::__do_start() {\n'),
     foldl(setup_args(St),Goal,0,_),
+    write(St,'\tstatic_list_variables=top_list_values;\n'),
     write(St,'\tframe_top=0;\n'),
     write(St,'\tFrameStore& frame=frames[frame_top];\n'),
     write(St,'\tframe.clause_index=0;\n'),
@@ -165,6 +166,7 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     write(St,', uint32_t voffset, uint32_t& voffset_new, uint32_t parent_frame) {\n'),
     (LP>1 -> write(St,'\tFrameStore* fs=nullptr;\n') ; true),
     write(St,'\tuint32_t unwind_stack_decouple_mark=p.top_unwind_stack_decouple;\n'),
+    write(St,'\tuint32_t unwind_stack_gc_mark=p.top_unwind_stack_gc;\n'),
     %(Arity>0 -> write(St,'\tuint8_t tag_arg0'),compile_clause_args_setup_vars(St,', tag_arg',1,Arity),write(St,';\n') ; true),
     write(St,'\tuint32_t function_frame_top='),
     (LP>1 -> write(St,'p.frame_top;\n') ; write(St,'p.function_frame_top_last_n_clause;\n')),
@@ -236,7 +238,7 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
         write(St,'\t\t\tfs=p.process_stack_state_load_save(0);\n'),
         write(St,'\t\t\tfs->clause_index++;\n'),
         write(St,'\t\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
-        write(St,'\t\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
+        write(St,'\t\t\t\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top,parent_frame);\n'),
         %write(St,'\t\t\t\tparent_frame=p.frame_top;\n'),
         write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
         write(St,'\t\t\t} else {\n'),
@@ -268,7 +270,7 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     write(Sto,PredBody),
     (LP>1 -> write(Sto,'\t}\n') ; true),
     write(Sto,'fail_'),write(Sto,Label),write(Sto,':;\n'),
-    write(Sto,'\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,function_frame_top,parent_frame);\n'),
+    write(Sto,'\tp.unwind_stack_revert_to_mark(unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top,parent_frame);\n'),
     write(Sto,'fail_'),write(Sto,Label),write(Sto,'_no_unwind:;\n'),
     (LP>1,NClause1\=LP -> write(Sto,'\tif(fs!=nullptr)fs->clause_index++;\n') ; true),
     write(Sto,'next_'),write(Sto,Label),write(Sto,':;\n').
@@ -286,11 +288,11 @@ process_delayed(St,var_set_add_to_unwind_stack_var(Pre,Chase,L,V),Sdict1,state(S
     (Chase -> check_pointer_chase_notag(St,V,Sdict1,Sdict2) ; Sdict2=Sdict1),
     state(Sd,Tags1,Delayed,_)=Sdict2,
     write(St,'p.var_set_add_to_unwind_stack('),write(St,L),write(St,'>>TAG_WIDTH,'),write(St,V),write(St,');\n').
-process_delayed(St,var_set_add_to_unwind_stack_offset(Pre,Chase,L,V),Sdict1,state(Sd,Tags1,Delayed,true)) :-
+process_delayed(St,var_set_add_to_unwind_stack_offset(Pre,Postfix,Chase,L,V),Sdict1,state(Sd,Tags1,Delayed,true)) :-
     process_delayed_pre(St,Pre),
     (Chase -> check_pointer_chase_notag(St,V,Sdict1,Sdict2) ; Sdict2=Sdict1),
     state(Sd,Tags1,Delayed,_)=Sdict2,
-    write(St,'p.var_set_add_to_unwind_stack('),write(St,L),write(St,'+voffset,'),write(St,V),write(St,');\n').
+    write(St,'p.var_set_add_to_unwind_stack'),write(St,Postfix),write(St,'('),write(St,L),write(St,'+voffset,'),write(St,V),write(St,');\n').
 process_delayed(St,create_list(Pre,N,H,T),Sdict1,Sdict1) :-
     process_delayed_pre(St,Pre),
     write(St,N),write(St,'lc=p.plcreate_list('),write(St,H),write(St,','),write(St,T),write(St,');\n').
@@ -418,7 +420,7 @@ compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn,Pre) :
         nth0(V,DictT,v(K)),
         write(St,'\t\tvar'),write(St,K),write(St,'='),write(St,N),write(St,';\n'),
         %check_pointer_chase_notag(St,N,Sdict1,Sdict2),
-        add_delayed_instruction(Sdict1,Sdictn,var_set_add_to_unwind_stack_offset(Pre,true,V,N))
+        add_delayed_instruction(Sdict1,Sdictn,var_set_add_to_unwind_stack_offset(Pre,'_nogc',true,K,N))
         %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,V),write(St,'+voffset,'),write(St,N),write(St,');\n')
     ).
 compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdictn,_) :-
@@ -427,7 +429,7 @@ compile_clause_args1_aux2(St,DictT,Label,list(H,T),N,Used1,Used3,Sdict1,Sdictn,_
     atomics_to_string([N,'h'],ArgH),
     atomics_to_string([N,'t'],ArgT),
     write(St,'\t\tuint32_t '),write(St,N),write(St,'lc, '),write(St,ArgH),write(St,', '),write(St,ArgT),write(St,';\n'),
-    write(St,'\t\tif(tag_'),write(St,N),write(St,'==TAG_LIST) {\n'),
+    write(St,'\t\tif(tag_'),write(St,N),write(St,'>=TAG_LIST) {\n'),
     write(St,'\t\tList& '),write(St,N),write(St,'l=p.list_values['),write(St,N),write(St,'>>TAG_WIDTH];\n'),
     write(St,'\t\t'),write(St,ArgH),write(St,'='),write(St,N),write(St,'l.head;\n'),
     write(St,'\t\tp.pointer_chase_notag('),write(St,ArgH),write(St,');\n'),
