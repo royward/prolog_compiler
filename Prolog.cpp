@@ -37,18 +37,18 @@
 //#define TRACE 1
 
 bool Prolog::unify(uint32_t val1, uint32_t val2) {
-    // First do any pointer chasing. There may be benefits to checking variable matching first
+    // No pointer chasing. Assumed already done
     uint8_t tag1=val1&TAG_MASK;
     //pointer_chase(tag1,val1);
     uint8_t tag2=val2&TAG_MASK;;
     //pointer_chase(tag2,val2);
     if(tag2==TAG_VREF) {
-        variables[(val2>>TAG_WIDTH)]=val1|(tag1>>2); //  tag 110->111
+        variables[(val2>>TAG_WIDTH)]=val1;
         unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>TAG_WIDTH;
         return true;
     }
     if(tag1==TAG_VREF) {
-        variables[(val1>>TAG_WIDTH)]=val2|(tag2>>2); //  tag 110->111
+        variables[(val1>>TAG_WIDTH)]=val2;
         unwind_stack_decouple[top_unwind_stack_decouple++]=(val1>>TAG_WIDTH);
         return true;
     }
@@ -56,7 +56,6 @@ bool Prolog::unify(uint32_t val1, uint32_t val2) {
         return false;
     }
     switch(tag1) {
-        case TAG_VAR_LIST:
         case TAG_LIST: {
             List& l1=list_values[val1>>TAG_WIDTH];
             List& l2=list_values[val2>>TAG_WIDTH];
@@ -107,7 +106,6 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
         case TAG_VREF: {
             ss << '_' << v;
         } break;
-        case TAG_VAR_LIST:
         case TAG_LIST: {
             if(!in_list) {
                 ss << '[';
@@ -236,6 +234,7 @@ int main() {
     Prolog p;
     p.__do_start();
     p.unwind_stack_revert_to_mark_only(0,0);
+#ifdef TEST_GC
     uint32_t acc=0;
     uint32_t v=p.freelist_list;
     while(v!=0) {
@@ -244,5 +243,6 @@ int main() {
     }
     std::cout << "Used list cells=" <<acc<<std::endl;
     std::cout << "Max list cells=" <<p.top_list_values-p.static_list_variables<<std::endl;
+#endif
     return 0;
 }

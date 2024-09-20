@@ -42,7 +42,6 @@ static const uint8_t TAG_VAR=0b001;
 static const uint8_t TAG_EOL=0b010;
 static const uint8_t TAG_INTEGER=0b011;
 static const uint8_t TAG_LIST=0b110;
-static const uint8_t TAG_VAR_LIST=0b111;
 static const uint32_t TAG_MASK=0b111;
 static const uint32_t TAG_WIDTH=3;
 
@@ -148,15 +147,16 @@ loop:
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
     };
     inline void var_set_add_to_unwind_stack_nogc(uint32_t v, uint32_t val) {
-        variables[v]=val|((val>>2)&1);
+        variables[v]=val;
         unwind_stack_decouple[top_unwind_stack_decouple++]=v;
     };
     inline void unwind_stack_revert_to_mark_only(uint32_t bottom_decouple, uint32_t bottom_gc) {
-        //std::cout << bottom_decouple << "::" << top_unwind_stack_decouple << std::endl;
+        //std::cout << bottom_decouple << "::" << top_unwind_stack_decouple << "  ";
         for(uint32_t i=bottom_decouple;i<top_unwind_stack_decouple;i++) {
-            uint32_t& var=variables[unwind_stack_decouple[i]];
-            var=TAG_VAR;
+            //std::cout << (((variables[var]&TAG_MASK)==TAG_LIST)?1:0);
+            variables[unwind_stack_decouple[i]]=TAG_VAR;
         }
+        //std::cout << std::endl;
         top_unwind_stack_decouple=bottom_decouple;
         for(uint32_t i=bottom_gc;i<top_unwind_stack_gc;i++) {
             delete_list_cell(unwind_stack_gc[i]);
