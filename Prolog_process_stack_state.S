@@ -33,6 +33,7 @@
 _ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
         test   %esi,%esi
         jne     restore
+#save
         mov    0x8(%rdi),%eax # frame top
         mov    0xC(%rdi),%edx # frame size
         mul    %edx
@@ -47,12 +48,15 @@ _ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load
         mov    %r14,0x28(%rsi)
         mov    %r15,0x30(%rsi)
         mov    %rsi,%rbx # fs
+        sub    $0x8,%rsp
         call    _ZN6Prolog28process_stack_state_save_auxEP10FrameStore
+        add    $0x8,%rsp
         mov    %rbx,%rax
         mov    (%rbx),%rbx # rbx is callee saved
         ret
 restore:
         mov    %rdi,%rbx # save 'this'. going to need it later
+        sub    $0x8,%rsp
         call   _ZN6Prolog28process_stack_state_load_auxEj
         # rax - scratch,store
         # rcx - counter for scratch_buf entries
@@ -64,15 +68,16 @@ restore:
         # r8  - memory copy limit
         # r9  - frame size
         mov    %eax,%ecx #guarantee at least one frame to copy, so don't need to check for <0
-        #mov    $0,%ecx
+        mov    $0,%ecx
         mov    0xC(%rbx),%r9d # frame size
         mov    0x10(%rbx),%rbp # scratch buf base
 outer_loop:
-        mov    0x0(%rbp,%rcx,4),%eax # current frame
+        mov    0x0(%rbp,%rcx,8),%eax # current frame
+        mov    0x4(%rbp,%rcx,8),%r8 # override size
         mul    %r9d
         mov    0x0(%rbx),%rdx
         lea    0x0(%rdx,%rax),%rax
-        mov    0x48(%rax),%r8 #fs->size
+        #mov    0x48(%rax),%r8 #fs->size # get from override instead
         test   %r8,%r8
         je     copy_to_stack_noloop
         mov    0x38(%rax),%rdx # fs->store

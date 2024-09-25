@@ -45,6 +45,13 @@ static const uint8_t TAG_LIST=0b110;
 static const uint32_t TAG_MASK=0b111;
 static const uint32_t TAG_WIDTH=3;
 
+#ifdef __OPTIMIZE__
+const static uint64_t SP_BUFFER=48;
+#else
+const static uint64_t SP_BUFFER=128;
+#endif
+//const static uint64_t SP_BUFFER=1000000;
+
 struct FrameReferenceInfo {
     FrameReferenceInfo(uint32_t p) {count=p;};
     uint32_t count;
@@ -70,6 +77,7 @@ struct FrameStore {
     uint32_t unwind_stack_decouple_mark;
     uint32_t unwind_stack_gc_mark;
     uint32_t call_depth;
+    uint8_t* low_water_mark_sp;
 };
 
 class List {
@@ -163,6 +171,27 @@ loop:
        }
         top_unwind_stack_gc=bottom_gc;
     };
+    inline void set_stack_low_water_mark() {
+#ifdef __OPTIMIZE__
+        uint8_t* sp=(uint8_t*)__builtin_frame_address(0);
+#else
+        uint8_t* sp=(uint8_t*)__builtin_frame_address(1);
+#endif
+        if(frames[frame_top].low_water_mark_sp<sp) {
+            frames[frame_top].low_water_mark_sp=sp;
+        }
+        Prolog::check_stack();
+   }
+    void check_stack() {
+        // if(frame_top>0) {
+        // FrameStore* fs_low=&frames[frame_top];
+        // int32_t i=fs_low->size-1;
+        // while(fs_low->store[i]==fs_low->live[i] && i>=0) {
+        //     i--;
+        // }
+        // std::cout << "Actual_sp " << (void*)(fs_low->live+i) << " (" << (int32_t)(frames[frame_top].low_water_mark_sp-(fs_low->live+i)) << ')' << std::endl;
+        // }
+    }
     uint8_t* base_sp=0;
     uint8_t* stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
     uint32_t* variables=(uint32_t*)malloc(4*STACK_SIZES);

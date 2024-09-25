@@ -138,19 +138,18 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_
 #define SSE_ALIGN 0xF
 #endif
 
-#ifdef __OPTIMIZE__
-const static uint64_t SP_BUFFER=48;
-#else
-const static uint64_t SP_BUFFER=128;
-#endif
-//const static uint64_t SP_BUFFER=1000000;
-
 void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
+    // uint8_t* sp;
+    // asm ("mov %%rsp, %0"
+    // : "=r" (sp)
+    // : );
+    fs->low_water_mark_sp=0;
+    //fs->lwm=low_water_mark_sp;
     uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
     fs->stack_bottom=(fs->store_sp-extra);
     fs->live=(fs->stack_bottom);
-    //uint8_t* top_sp=base_sp;
-    uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
+    uint8_t* top_sp=base_sp;
+    //uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
     fs->size=((top_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
     fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
     stack_used+=fs->size;
@@ -165,9 +164,13 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
        _mm_store_ps((float*)(dst+i),_mm_load_ps((float*)(src+i)));
 #endif
     }
+    //std::cout << "==================== save " << frame_top << "  lwm=" << (void*)fs->low_water_mark_sp << std::endl;
+    //std::cout << "LWM " << (void*)sp << std::endl;
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
     fs->unwind_stack_gc_mark=top_unwind_stack_gc;
 }
+
+uint32_t c=0;
 
 uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_t parent) {
     // Subsequent pass - restore the data
@@ -177,12 +180,30 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
         uint32_t bottom_gc=fs_low->unwind_stack_gc_mark;
         unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
     }
+    // int32_t i=fs_low->size-1;
+    //low_water_mark_sp=fs_low->lwm;
+    // while(fs_low->store[i]==fs_low->live[i] && i>=0) {
+    //    i--;
+    //}
+    //std::cout << "actual_sp " << (void*)(fs_low->live+i) << std::endl;
+    //std::cout << "==================== load " << frame_top << "  lwm=" << (void*)fs_low->low_water_mark_sp << std::endl;
+    //asm("int3");
     uint32_t frame_count=0;
     scratch_buf[frame_count++]=frame_top;
-    while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
-        scratch_buf[frame_count++]=fs_low->parent_frame;
-        fs_low=&frames[fs_low->parent_frame];
-    }
+    //scratch_buf[frame_count++]=fs_low->size;
+    scratch_buf[frame_count++]=std::min((((uint32_t)(fs_low->low_water_mark_sp-fs_low->live))+SSE_ALIGN)&~SSE_ALIGN,fs_low->size);
+    // while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
+    //     scratch_buf[frame_count++]=fs_low->parent_frame;
+    //     fs_low=&frames[fs_low->parent_frame];
+    // }
+    //uint8_t* actual=fs_low->live+i;
+    //std::cout << "ACTUAL_SP " << (void*)(actual) << std::endl;
+    //std::cout << "DIFF " << (int32_t)(fs_low->low_water_mark_sp-actual) << std::endl;
+    //if((int32_t)(low_water_mark_sp-actual)<-200)asm("int3");
+    //std::cout << fs_low->size << ':' << (int64_t)(low_water_mark_sp-fs_low->live) << ':' << i << "   " << i-(int32_t)(low_water_mark_sp-fs_low->live) << std::endl;
+    //if(c>=7)asm("int3");
+    c++;
+    //asm("int3");
 #if TRACE
     printf("%d  ",parent);
     for(int32_t i=frame_count-1;i>=0;i--) {
@@ -203,22 +224,22 @@ void Prolog::pop_frame_stack() {
     }
 }
 
-void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
-    //pop_frame_stack();
-    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
-        if(parent==frame_top) {
-            parent=frames[frame_top].parent_frame;
-        }
-        stack_used-=frames[frame_top].size;
-#if TRACE
-//        printf(" -%d\n",frame_top);
-#endif
-        frame_top--;
-    }
-}
+// void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
+//     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
+//         if(parent==frame_top) {
+//             parent=frames[frame_top].parent_frame;
+//         }
+//         stack_used-=frames[frame_top].size;
+// #if TRACE
+// //        printf(" -%d\n",frame_top);
+// #endif
+//         frame_top--;
+//     }
+// }
 
 void Prolog::unwind_stack_revert_to_mark(uint32_t bottom_decouple, uint32_t bottom_gc, uint32_t frame_depth, uint32_t& parent) {
-    pop_frame_stack_track_parent(parent);
+    pop_frame_stack();
+    //pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
 #if TRACE
         std::cout << "=== loaded continuation0 " << frame_top << std::endl;
