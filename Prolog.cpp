@@ -34,9 +34,7 @@
 #include <sstream>
 #include <cstring>
 
-//#define TRACE 1
-
-bool Prolog::unify(uint32_t val1, uint32_t val2) {
+bool Prolog::unify(UWORD val1, UWORD val2) {
     // No pointer chasing. Assumed already done
     uint8_t tag1=val1&TAG_MASK;
     //pointer_chase(tag1,val1);
@@ -71,34 +69,34 @@ bool Prolog::unify(uint32_t val1, uint32_t val2) {
     }
 }
 
-uint32_t Prolog::plcreate_eol() {
+UWORD Prolog::plcreate_eol() {
     return TAG_EOL;
 }
 
-uint32_t Prolog::plcreate_int(uint32_t i) {
+UWORD Prolog::plcreate_int(UWORD i) {
     return (i<<TAG_WIDTH)+TAG_INTEGER;
 }
 
-uint32_t Prolog::plcreate_var(uint32_t i) {
+UWORD Prolog::plcreate_var(UWORD i) {
     if(top_variables<i+1) {
         top_variables=i+1;
     }
     return (i<<TAG_WIDTH)+TAG_VREF;
 }
 
-std::string Prolog::pldisplay(uint32_t i) {
+std::string Prolog::pldisplay(UWORD i) {
     std::stringstream ss;
     pldisplay_aux(ss,' ',false,i);
     return ss.str();
 }
 
-void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, uint32_t i) {
+void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, UWORD i) {
     uint8_t tag;
     pointer_chase(tag,i);
     if(tag==TAG_EOL && in_list) {
         return;
     }
-    uint32_t v=i>>TAG_WIDTH;
+    UWORD v=i>>TAG_WIDTH;
     if(ch!=' ') {
         ss << ch;
     }
@@ -157,7 +155,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     uint8_t* dst=fs->store;
     uint8_t* src=fs->live;
     //std::cout << size << std::endl;
-    for(uint32_t i=0;i<size;i+=(SSE_ALIGN+1)) {
+    for(UWORD i=0;i<size;i+=(SSE_ALIGN+1)) {
 #ifdef USE_AVX
         _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
 #else
@@ -176,8 +174,8 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_top];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
-        uint32_t bottom_decouple=fs_low->unwind_stack_decouple_mark;
-        uint32_t bottom_gc=fs_low->unwind_stack_gc_mark;
+        UWORD bottom_decouple=fs_low->unwind_stack_decouple_mark;
+        UWORD bottom_gc=fs_low->unwind_stack_gc_mark;
         unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
     }
     // int32_t i=fs_low->size-1;
@@ -237,7 +235,7 @@ void Prolog::pop_frame_stack() {
 //     }
 // }
 
-void Prolog::unwind_stack_revert_to_mark(uint32_t bottom_decouple, uint32_t bottom_gc, uint32_t frame_depth, uint32_t& parent) {
+void Prolog::unwind_stack_revert_to_mark(UWORD bottom_decouple, UWORD bottom_gc, uint32_t frame_depth, uint32_t& parent) {
     pop_frame_stack();
     //pop_frame_stack_track_parent(parent);
     if(frame_top>0 && frame_depth<frame_top) {
@@ -256,8 +254,8 @@ int main() {
     p.__do_start();
     p.unwind_stack_revert_to_mark_only(0,0);
 #ifdef TEST_GC
-    uint32_t acc=0;
-    uint32_t v=p.freelist_list;
+    UWORD acc=0;
+    UWORD v=p.freelist_list;
     while(v!=0) {
         acc++;
         v=p.list_values[v].head;
