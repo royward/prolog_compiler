@@ -136,26 +136,63 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, UWORD i
 #define SSE_ALIGN 0xF
 #endif
 
-void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore* fs) {
+void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
+    FrameStore* fs=&frames[frame_top];
     // uint8_t* sp;
     // asm ("mov %%rsp, %0"
     // : "=r" (sp)
     // : );
-    fs->low_water_mark_sp=0;
     //fs->lwm=low_water_mark_sp;
     uint64_t extra=((uint64_t)fs->store_sp)&SSE_ALIGN;
     fs->stack_bottom=(fs->store_sp-extra);
     fs->live=(fs->stack_bottom);
-    uint8_t* top_sp=base_sp;
+    //uint8_t* top_sp=base_sp;
     //uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
-    fs->size=((top_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
-    fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->size]);
-    stack_used+=fs->size;
-    uint64_t size=fs->size;
+    fs->save_size=((base_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+    fs->load_size=fs->save_size;
+    fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->save_size]);
+    if(frame_top>1 && fs->low_water_mark_sp!=0/* && fs->low_water_mark_sp!=base_sp*/) {
+        FrameStore* fsl=&frames[frame_top-1];
+        uint8_t* i0=fs->live+fs->save_size;
+        uint8_t* i1=fsl->store+fsl->save_size;
+        uint32_t acc=0;
+        while(*--i0 == *--i1) {
+            acc++;
+        }
+        //std::cout << "acc=" << acc << std::endl;
+        uint8_t* acc_lwm=fs->live+fs->save_size-acc;
+        std::cout << "DIFFS(" << frame_top << ") " << (void*)acc_lwm << ':' << (void*)(fs->low_water_mark_sp+STACK_SAVE_OFFSET) << "   " << (int32_t)(fs->low_water_mark_sp+STACK_SAVE_OFFSET-acc_lwm) << std::endl;
+        //if((int32_t)(acc_lwm-fs->low_water_mark_sp)<0)asm("int3");
+        // int32_t i=fs->size-1;
+        // while(fs_low->store[i]==fs->live[i] && i>=0) {
+        //     i--;
+        // }
+    }
+    uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=nullptr && frame_top>1)?fs->low_water_mark_sp:base_sp;
+    std::cout << "SAVE SIZE: " << fs->save_size << " -> ";
+    //fs->save_size=((std::min(base_sp,local_low_water_mark+STACK_SAVE_OFFSET)-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+    std::cout << fs->save_size << std::endl;
+    if(fs->live+fs->save_size<base_sp) {
+        int32_t fptr=frame_top-1;
+        while(fptr>0) {
+            FrameStore& fsl=frames[fptr];
+            if(fsl.live+fsl.save_size>fs->live+fs->save_size) {
+                std::cout << "PTR " << frame_top << "->" << fptr << std::endl;
+                fs->parent_frame=fptr;
+                break;
+            }
+            fptr--;
+        }
+    } else {
+        fs->parent_frame=0;
+    }
+    stack_used+=fs->save_size;
+    uint64_t save_size=fs->save_size;
     uint8_t* dst=fs->store;
     uint8_t* src=fs->live;
+    std::cout << frame_top << '$' << (void*)src << ':' << (void*)(src+save_size) << std::endl;
     //std::cout << size << std::endl;
-    for(UWORD i=0;i<size;i+=(SSE_ALIGN+1)) {
+    for(UWORD i=0;i<save_size;i+=(SSE_ALIGN+1)) {
 #ifdef USE_AVX
         _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
 #else
@@ -166,11 +203,12 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux(FrameStore*
     //std::cout << "LWM " << (void*)sp << std::endl;
     fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
     fs->unwind_stack_gc_mark=top_unwind_stack_gc;
+    fs->low_water_mark_sp=0;
 }
 
 uint32_t c=0;
 
-uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_t parent) {
+void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // Subsequent pass - restore the data
     FrameStore* fs_low=&frames[frame_top];
     if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
@@ -178,30 +216,72 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
         UWORD bottom_gc=fs_low->unwind_stack_gc_mark;
         unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
     }
-    // int32_t i=fs_low->size-1;
-    //low_water_mark_sp=fs_low->lwm;
-    // while(fs_low->store[i]==fs_low->live[i] && i>=0) {
-    //    i--;
-    //}
+    int32_t i=fs_low->load_size-1;
+    while(fs_low->store[i]==fs_low->live[i] && i>=0) {
+       i--;
+    }
     //std::cout << "actual_sp " << (void*)(fs_low->live+i) << std::endl;
     //std::cout << "==================== load " << frame_top << "  lwm=" << (void*)fs_low->low_water_mark_sp << std::endl;
     //asm("int3");
-    uint32_t frame_count=0;
-    scratch_buf[frame_count++]=frame_top;
-    //scratch_buf[frame_count++]=fs_low->size;
-    scratch_buf[frame_count++]=std::min((((uint32_t)(fs_low->low_water_mark_sp-fs_low->live))+SSE_ALIGN)&~SSE_ALIGN,fs_low->size);
+    // uint32_t frame_count=0;
+    // scratch_buf[frame_count*3]=frame_top;
+    // scratch_buf[frame_count*3+1]=fs_low->save_size;
+    // scratch_buf[frame_count*3+2]=0;
+    // frame_count++;
+    uint8_t* src=fs_low->store;
+    uint8_t* dst=fs_low->live;
+    uint32_t size=fs_low->save_size;
+    for(UWORD i=0;i<size;i+=(SSE_ALIGN+1)) {
+#ifdef USE_AVX
+        _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
+#else
+        _mm_store_ps((float*)(dst+i),_mm_load_ps((float*)(src+i)));
+#endif
+    }
+    uint32_t fptr=frame_top;
+    uint8_t* current_top=fs_low->live+fs_low->save_size;
+    while(current_top<base_sp) {
+        fptr--;
+        FrameStore fsptr=frames[fptr];
+        if(fsptr.live+fsptr.save_size>current_top) {
+            uint32_t new_size=fsptr.live+fsptr.save_size-current_top;
+            uint32_t new_offset=fsptr.save_size-new_size;
+            current_top=fsptr.live+fsptr.save_size;
+            uint8_t* src=fsptr.store+new_offset;
+            uint8_t* dst=fsptr.live+new_offset;
+            for(UWORD i=0;i<new_size;i+=(SSE_ALIGN+1)) {
+#ifdef USE_AVX
+                _mm256_store_ps((float*)(dst+i),_mm256_load_ps((float*)(src+i)));
+#else
+                _mm_store_ps((float*)(dst+i),_mm_load_ps((float*)(src+i)));
+#endif
+            }
+            // scratch_buf[frame_count*3]=fptr;
+            // scratch_buf[frame_count*3+1]=new_size;
+            // scratch_buf[frame_count*3+2]=new_offset;
+            //frame_count++;
+            std::cout << "%%%%%%%%%%% " << fptr << ' ' << new_size << ' ' << new_offset << std::endl;
+        }
+    }
+    //scratch_buf[frame_count++]=std::min((((uint32_t)(fs_low->low_water_mark_sp-fs_low->live))+SSE_ALIGN)&~SSE_ALIGN,fs_low->size);
     // while(fs_low->parent_frame!=0/* && fs_low->parent_frame>=parent*/) {
     //     scratch_buf[frame_count++]=fs_low->parent_frame;
     //     fs_low=&frames[fs_low->parent_frame];
     // }
-    //uint8_t* actual=fs_low->live+i;
+    uint8_t* actual=fs_low->live+i;
     //std::cout << "ACTUAL_SP " << (void*)(actual) << std::endl;
-    //std::cout << "DIFF " << (int32_t)(fs_low->low_water_mark_sp-actual) << std::endl;
+    std::cout << "DIFF " << (int32_t)(fs_low->low_water_mark_sp-actual) << std::endl;
     //if((int32_t)(low_water_mark_sp-actual)<-200)asm("int3");
     //std::cout << fs_low->size << ':' << (int64_t)(low_water_mark_sp-fs_low->live) << ':' << i << "   " << i-(int32_t)(low_water_mark_sp-fs_low->live) << std::endl;
     //if(c>=7)asm("int3");
     c++;
     //asm("int3");
+    // std::cout << (void*)base_sp << std::endl;
+    // for(int32_t i=frame_count-1;i>=0;i--) {
+    //     std::cout << scratch_buf[i*3] << "#" << (void*)(frames[scratch_buf[i*3]].live+scratch_buf[i*3+2])
+    //         << ':' << (void*)(frames[scratch_buf[i*3]].live+scratch_buf[i*3+2]+scratch_buf[i*3+1]) << std::endl;
+    // }
+    // printf("\n");
 #if TRACE
     printf("%d  ",parent);
     for(int32_t i=frame_count-1;i>=0;i--) {
@@ -209,12 +289,11 @@ uint32_t __attribute__ ((noinline)) Prolog::process_stack_state_load_aux(uint32_
     }
     printf("\n");
 #endif
-    return frame_count-1;
 }
 
 void Prolog::pop_frame_stack() {
     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
-        stack_used-=frames[frame_top].size;
+        stack_used-=frames[frame_top].save_size;
 #if TRACE
 //        printf(" -%d\n",frame_top);
 #endif

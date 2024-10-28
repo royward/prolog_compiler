@@ -47,12 +47,23 @@ static const uint8_t TAG_LIST=0b110;
 static const UWORD TAG_MASK=0b111;
 static const uint32_t TAG_WIDTH=3;
 
+// #ifdef __OPTIMIZE__
+// const static uint64_t SP_BUFFER=48;
+// #else
+// const static uint64_t SP_BUFFER=128;
+// #endif
+// //const static uint64_t SP_BUFFER=1000000;
+
 #ifdef __OPTIMIZE__
-const static uint64_t SP_BUFFER=48;
+//const static UWORD STACK_SAVE_OFFSET=96;
+const static UWORD STACK_SAVE_OFFSET=136;
 #else
-const static uint64_t SP_BUFFER=128;
+#ifdef WORD64
+const static UWORD STACK_SAVE_OFFSET=136;
+#else
+const static UWORD STACK_SAVE_OFFSET=108;
 #endif
-//const static uint64_t SP_BUFFER=1000000;
+#endif
 
 struct FrameStore {
     // Fields beyond here must not be altered as there are assembler offsets into them
@@ -65,10 +76,11 @@ struct FrameStore {
     uint8_t* store_15;
     uint8_t* store;
     uint8_t* live;
-    uint32_t size;
+    uint32_t save_size;
     int32_t clause_index;
     uint32_t parent_frame;
     // Fields up to here must not be altered as there are assembler offsets into them
+    uint32_t load_size;
     int32_t clause_count;
     uint8_t* stack_bottom;
     UWORD unwind_stack_decouple_mark;
@@ -89,7 +101,7 @@ public:
     FrameStore* frames=(FrameStore*)malloc(1000*sizeof(FrameStore));
     uint32_t frame_top;
     uint32_t frame_size=sizeof(FrameStore);
-    uint32_t* scratch_buf=(uint32_t*)malloc(0x40000);
+    //uint32_t* scratch_buf=(uint32_t*)malloc(0x40000);
     // Fields up to here must not be altered as there are assembler offsets into them
     inline void pointer_chase(uint8_t& tag, UWORD& val) {
 loop:
@@ -140,8 +152,8 @@ loop:
     std::string pldisplay(UWORD x);
     void process_stack_state(FrameStore* fs);
     FrameStore* process_stack_state_load_save(int flag);
-    void process_stack_state_save_aux(FrameStore* fs);
-    uint32_t process_stack_state_load_aux(uint32_t parent);
+    void process_stack_state_save_aux();
+    void process_stack_state_load_aux();
     void pop_frame_stack();
     void pop_frame_stack_track_parent(uint32_t& parent);
     void unwind_stack_revert_to_mark(UWORD decouple_mark, UWORD gc_mark, uint32_t call_depth, uint32_t& parent);
@@ -177,6 +189,7 @@ loop:
         if(frames[frame_top].low_water_mark_sp<sp) {
             frames[frame_top].low_water_mark_sp=sp;
         }
+        //std::cout << "lwm=" << frame_top << '/' << (void*)frames[frame_top].low_water_mark_sp << std::endl;
         Prolog::check_stack();
    }
     void check_stack() {

@@ -36,6 +36,7 @@ compile(file("append.pl"),string("append([1],[2],X).")).
 compile(file("append.pl"),string("append([1,2],[3,4],X).")).
 compile(file("append.pl"),string("append([1,2],X,[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,[1],[2]).")).
+compile(file("append.pl"),string("append(X,[],[]).")).
 compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,Y,[1]).")).
 compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
@@ -65,6 +66,8 @@ compile(RawProgram,RawGoal) :-
     (trace_mode -> write(Sth,'#define TRACE 1\n\n') ; true),
     word_size(W),
     write(Sth,'typedef uint'),write(Sth,W),write(Sth,'_t UWORD;\n'),
+    write(Sth,'typedef int'),write(Sth,W),write(Sth,'_t SWORD;\n'),
+    write(Sth,'#define WORD'),write(Sth,W),write(Sth,' 1\n'),
     close(Sth),
     open('PrologGenerated.cpp',write,St),
     write(St,'//////////////////////////////////////////////////////////////////////////////////////\n'),

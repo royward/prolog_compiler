@@ -13,5 +13,5 @@ release:
 debug:
 	@$(CXX) $(OPT) $(FLAGS) -c -o Prolog.o Prolog.cpp
 	@$(CXX) $(OPT) $(FLAGS) -c -o Prolog_process_stack_state.o Prolog_process_stack_state.S
-	@$(CXX) $(OPT) $(FLAGS) -c -o PrologGenerated.o PrologGenerated.cpp
+	@$(CXX) $(FAST) $(FLAGS) -c -o PrologGenerated.o PrologGenerated.cpp
 	@$(CXX) $(OPT) -z noexecstack -o test.debug Prolog.o PrologGenerated.o Prolog_process_stack_state.o
