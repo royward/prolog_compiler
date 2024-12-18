@@ -34,6 +34,8 @@
 #include <sstream>
 #include <cstring>
 
+//#define D 1
+
 bool Prolog::unify(UWORD val1, UWORD val2) {
     // No pointer chasing. Assumed already done
     uint8_t tag1=val1&TAG_MASK;
@@ -161,7 +163,9 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
         }
         //std::cout << "acc=" << acc << std::endl;
         uint8_t* acc_lwm=fs->live+fs->save_size-acc;
+#if D
         std::cout << "DIFFS(" << frame_top << ") " << (void*)acc_lwm << ':' << (void*)(fs->low_water_mark_sp+STACK_SAVE_OFFSET) << "   " << (int32_t)(fs->low_water_mark_sp+STACK_SAVE_OFFSET-acc_lwm) << std::endl;
+#endif
         //if((int32_t)(acc_lwm-fs->low_water_mark_sp)<0)asm("int3");
         // int32_t i=fs->size-1;
         // while(fs_low->store[i]==fs->live[i] && i>=0) {
@@ -169,15 +173,21 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
         // }
     }
     uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=nullptr && frame_top>1)?fs->low_water_mark_sp:base_sp;
+#if D
     std::cout << "SAVE SIZE: " << fs->save_size << " -> ";
-    //fs->save_size=((std::min(base_sp,local_low_water_mark+STACK_SAVE_OFFSET)-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+#endif
+//    fs->save_size=((std::min(base_sp,local_low_water_mark+STACK_SAVE_OFFSET)-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+#if D
     std::cout << fs->save_size << std::endl;
+#endif
     if(fs->live+fs->save_size<base_sp) {
         int32_t fptr=frame_top-1;
         while(fptr>0) {
             FrameStore& fsl=frames[fptr];
             if(fsl.live+fsl.save_size>fs->live+fs->save_size) {
+#if D
                 std::cout << "PTR " << frame_top << "->" << fptr << std::endl;
+#endif
                 fs->parent_frame=fptr;
                 break;
             }
@@ -190,7 +200,9 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
     uint64_t save_size=fs->save_size;
     uint8_t* dst=fs->store;
     uint8_t* src=fs->live;
+#if D
     std::cout << frame_top << '$' << (void*)src << ':' << (void*)(src+save_size) << std::endl;
+#endif
     //std::cout << size << std::endl;
     for(UWORD i=0;i<save_size;i+=(SSE_ALIGN+1)) {
 #ifdef USE_AVX
@@ -260,7 +272,9 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
             // scratch_buf[frame_count*3+1]=new_size;
             // scratch_buf[frame_count*3+2]=new_offset;
             //frame_count++;
+#if D
             std::cout << "%%%%%%%%%%% " << fptr << ' ' << new_size << ' ' << new_offset << std::endl;
+#endif
         }
     }
     //scratch_buf[frame_count++]=std::min((((uint32_t)(fs_low->low_water_mark_sp-fs_low->live))+SSE_ALIGN)&~SSE_ALIGN,fs_low->size);
@@ -270,7 +284,9 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
     // }
     uint8_t* actual=fs_low->live+i;
     //std::cout << "ACTUAL_SP " << (void*)(actual) << std::endl;
+#if D
     std::cout << "DIFF " << (int32_t)(fs_low->low_water_mark_sp-actual) << std::endl;
+#endif
     //if((int32_t)(low_water_mark_sp-actual)<-200)asm("int3");
     //std::cout << fs_low->size << ':' << (int64_t)(low_water_mark_sp-fs_low->live) << ':' << i << "   " << i-(int32_t)(low_water_mark_sp-fs_low->live) << std::endl;
     //if(c>=7)asm("int3");

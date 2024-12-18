@@ -415,7 +415,7 @@ compile_clause_args1_aux2(St,_,Label,i(I),N,Used1,Used1,Sdict1,Sdict3,Pre) :-
     write(St,'\t\tif(tag_'),write(St,N),write(St,'!=TAG_VREF) {goto fail_'),write(St,Label),
         (Sdict2=state(_,_,_,true) -> true ; write(St,'_no_unwind')),
         write(St,';}\n'),
-    concat_atom([I,'<<TAG_WIDTH)+TAG_INTEGER'],R),
+    concat_atom(['(',I,'<<TAG_WIDTH)+TAG_INTEGER'],R),
     add_delayed_instruction(Sdict2,Sdict3,var_set_add_to_unwind_stack_var(Pre,false,N,R)).
     %write(St,'\t\tp.var_set_add_to_unwind_stack('),write(St,N),write(St,'>>TAG_WIDTH,'),write(St,I),write(St,');\n').
 compile_clause_args1_aux2(St,DictT,Label,v(V),N,Used1,Used2,Sdict1,Sdictn,Pre) :-
