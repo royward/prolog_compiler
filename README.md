@@ -1,19 +1,18 @@
 # A Proof of Concept for writing a Prolog Compiler
 
-This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment. The compiler is designed to transpile Prolog code into C executables, for a very small part of the Prolog language.
+This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment on Linux. The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language.
 
 ## Prerequisites
 
 - [SWI-Prolog](https://www.swi-prolog.org/)
 - GNU Make
 - GCC compatible C Compiler: `clang` (generates the fastest code) or `gcc`
-- Standard development tools (e.g., `make`)
 
 ## Usage Guide
 
 ### 1. Installing Required Packages
 
-Before starting, you need to install the `dcg4pt` package within SWI-Prolog:
+Before starting, you need to install the `dcg4pt` package from within SWI-Prolog:
 
 ```prolog
 ?- pack_install(dcg4pt).
@@ -37,7 +36,7 @@ In order to ensure compatibility with newer versions of SWI-Prolog, you may need
 
 ### 3. Installing `plammar`
 
-After making the necessary edits to `dcg4pt`, you can now proceed to install `plammar`:
+After making the necessary edits to `dcg4pt`, you can now proceed to install `plammar` from within SWI-prolog:
 
 ```prolog
 ?- pack_install(plammar).
