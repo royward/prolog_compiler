@@ -83,7 +83,7 @@ compile(file("nqueens.pl"),string("queens(4,Q).")).
 
 ### 5. Generating the C++ File
 
-The compilation process generates a C file named `PrologGenerated.c`, which contains the translated code.
+The compilation process generates C files named `PrologGenerated.h` which contains some macros, and `PrologGenerated.c` which contains the translated code.
 
 To inspect the generated file and compile it, run:
 
