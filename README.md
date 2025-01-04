@@ -30,7 +30,7 @@ In order to ensure compatibility with newer versions of SWI-Prolog, you may need
    <EDITOR> ~/.local/share/swi-prolog/pack/dcg4pt/prolog/dcg4pt.pl
    ```
 
-2. Locate the two spots where an unquoted comma `(,)` is used. Replace the unquoted comma with a quoted one `(',')` to make the code compatible with SWI-Prolog.
+2. Locate the two spots where an unquoted comma `(,)` is used. Replace the unquoted comma with a quoted one `(',')` to make the code compatible with SWI-Prolog. If you have difficulty finding them, continue the setup and come back and fix it when it breaks.
 
 3. Save the file and exit the editor.
 
