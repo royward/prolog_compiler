@@ -147,8 +147,9 @@ loop:
 
 static inline void pointer_chase_notag(Prolog* p, UWORD* val) {
     UWORD v;
-    uint8_t tag=(*val&TAG_MASK);
+    uint8_t tag;
 loop:
+    tag=(*val&TAG_MASK);
     if(((tag&TAG_MASK)==TAG_VREF) && (v=p->variables[(*val>>TAG_WIDTH)])!=TAG_VAR) {
         *val=v;
         goto loop;

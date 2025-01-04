@@ -107,8 +107,10 @@ static inline void add_char_to_string(char** ss, uint32_t* pos, char ch) {
     (*pos)++;
 }
 
+#define PRINT_BUFFER_INC 512
+
 void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch, bool in_list, UWORD i) {
-    if(*pos+32>*plen) {plen+=32;*ss=(char*)realloc(*ss,*plen);}
+    if(*pos+PRINT_BUFFER_INC>*plen) {plen+=PRINT_BUFFER_INC;*ss=(char*)realloc(*ss,*plen);}
     uint8_t tag;
     pointer_chase(p,&tag,&i);
     if(tag==TAG_EOL && in_list) {
@@ -130,7 +132,6 @@ void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch,
             List* l=&p->list_values[v];
             pldisplay_aux(p,ss,pos,plen,' ',false,l->head);
             pldisplay_aux(p,ss,pos,plen,',',true,l->tail);
-            if(*pos+32>*plen) {plen+=32;*ss=(char*)realloc(*ss,*plen);}
             if(!in_list) {
                 add_char_to_string(ss,pos,']');
             }
@@ -152,11 +153,10 @@ void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch,
 }
 
 char* pldisplay(Prolog* p, UWORD i) {
-    uint32_t plen=64;
+    uint32_t plen=PRINT_BUFFER_INC+PRINT_BUFFER_INC;
     char* s=(char*)malloc(plen);
     uint32_t pos=0;
     pldisplay_aux(p,&s,&pos,&plen,' ',false,i);
-    if(pos+32>plen) {plen+=32;s=(char*)realloc(s,plen);}
     s[pos]='\0';
     return s;
 }
@@ -328,11 +328,11 @@ void __attribute__ ((noinline)) process_stack_state_load_aux(Prolog* p) {
     // }
     // printf("\n");
 #if TRACE
-    printf("%d  ",parent);
-    for(int32_t i=frame_count-1;i>=0;i--) {
-        printf(",%d",scratch_buf[i]);
-    }
-    printf("\n");
+    //printf("%d  ",parent);
+    //for(int32_t i=frame_count-1;i>=0;i--) {
+    //    printf(",%d",scratch_buf[i]);
+    //}
+    //printf("\n");
 #endif
 }
 
@@ -364,7 +364,7 @@ void unwind_stack_revert_to_mark(Prolog* p, UWORD bottom_decouple, UWORD bottom_
     //pop_frame_stack_track_parent(parent);
     if(p->frame_top>0 && frame_depth<p->frame_top) {
 #if TRACE
-        std::cout << "=== loaded continuation0 " << frame_top << std::endl;
+        printf("=== loaded continuation0 %d\n",p->frame_top);
 #endif
         process_stack_state_load_save(p,p->frame_top);
     }

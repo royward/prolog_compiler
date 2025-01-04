@@ -52,7 +52,7 @@ compile(file("nqueens.pl"),string("nqueens(12,Q).")).
 compile(file("foo.pl"),string("foo(1,2,X).")).
 */
 
-trace_mode.% :- fail.
+trace_mode :- fail.
 
 word_size(32).
 
@@ -83,7 +83,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\tframe->clause_index=0;\n'),
     write(St,'\tframe->clause_count=0;\n'),
     write(St,'\tframe->parent_frame=0;\n'),
-    (trace_mode -> write(St,'\tframe.call_depth=1;\n') ; true),
+    (trace_mode -> write(St,'\tframe->call_depth=1;\n') ; true),
     write(St,'\tp->frames[0].store_sp=p->base_sp=p->frames[0].low_water_mark_sp=(uint8_t*)__builtin_frame_address(0);\n'),
     write(St,'\tuint32_t parent_frame=0;\n'),
     nth0(InitClause,Pdict,f(Name,Arity)),
@@ -98,7 +98,7 @@ compile(RawProgram,RawGoal) :-
     write(St,'\t\tprintf("false.\\n")\n;'),
     write(St,'\t}\n'),
     write(St,'\tif(p->frame_top>0) {\n'),
-    (trace_mode -> write(St,'\t\t\tstd::cout << "=== loaded continuation " << frame_top << std::endl;\n') ; true),
+    (trace_mode -> write(St,'\t\t\tprintf("=== loaded continuation %d\\n",p->frame_top);\n') ; true),
     write(St,'\t\tset_stack_low_water_mark(p);\n'),
     write(St,'\t\tprocess_stack_state_load_save(p,p->frame_top);\n'),
     write(St,'\t}\n'),
@@ -184,14 +184,14 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     write(St,'\tuint32_t function_frame_top='),
     (LP>1 -> write(St,'p->frame_top;\n') ; write(St,'p->function_frame_top_last_n_clause;\n')),
     (trace_mode,LP>1 ->
-        write(St,'\t std::cout << (int)((fs==NULL)?-1:fs->call_depth) << \':\' << ">'),write(St,Name),write(St,'"'),
-        write_arg2(St,' << \',\' << pldisplay(p,arg',')',0,Arity),
-        write(St,' << " c=" << (int)((fs==NULL)?-1:fs->clause_index) << std::endl;\n')
+        write(St,'\tprintf("%d:>%s",(int)((fs==NULL)?-1:fs->call_depth),"'),write(St,Name),write(St,'");\n'),
+        write_arg2(St,'\t{char* s=pldisplay(p,arg',');printf(",%s",s);free(s);}\n',0,Arity),
+        write(St,'printf(" c=%d\\n",(int)((fs==NULL)?-1:fs->clause_index));\n')
     ; true),
     foldl(compile_clause(Name,Arity,St,Pdict,ClauseCounts,LP),Predicate,Matrix,0,_),
     %(LP>1 -> write(St,'\tpop_frame_stack(p);\n') ; true),
     write(St,'\t*voffset_new=voffset;\n'),
-    (trace_mode -> write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==NULL)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),write(St,Name),write(St,':FAIL" << std::endl;\n') ; true),
+    (trace_mode -> write(St,'\tprintf("%d:<%s:FAIL\\n",'),(LP>1 -> write(St,'(int)((fs==NULL)?-1:fs->call_depth)') ; write(St,'0')),write(St,',"'),write(St,Name),write(St,'");\n') ; true),
     write(St,'\treturn false;\n'),
     write(St,'}\n').
 
@@ -256,7 +256,7 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
         %write(St,'\t\t\t\tparent_frame=p->frame_top;\n'),
         write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
         write(St,'\t\t\t} else {\n'),
-        (trace_mode -> write(St,'\t\t\t\tstd::cout << "=== saved continuation " << p->frame_top << std::endl;\n') ; true),
+        (trace_mode -> write(St,'\t\t\t\tprintf("=== saved continuation %d\\n",p->frame_top);\n') ; true),
         do_process_delayed(St,Sdict2,Sdict3),
         write(St,'\t\t\t}\n'),
         write(St,'\t\t}\n')
@@ -267,10 +267,13 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     write(St,'\t\t*voffset_new=voffset_next;\n'),
     %(LP>1 -> write(St,'\t\tpop_frame_stack(p,);\n') ; true),
     (trace_mode,LP>1 ->
-        write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==NULL)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),
-        write(St,Name),write(St,'"'),
-        write_arg2(St,' << \',\' << pldisplay(p,arg',')',0,Arity),
-        write(St,' << " c=" << (int)((fs==NULL)?-1:fs->clause_index-1) << std::endl;\n')
+        write(St,'\tprintf("%d:<%s",(int)((fs==NULL)?-1:fs->call_depth),"'),write(St,Name),write(St,'");\n'),
+        write_arg2(St,'\t{char* s=pldisplay(p,arg',');printf(",%s",s);free(s);}\n',0,Arity),
+        write(St,'printf(" c=%d\\n",(int)((fs==NULL)?-1:fs->clause_index-1));\n')
+        %write(St,'\t std::cout << '),(LP>1 -> write(St,'(int)((fs==NULL)?-1:fs->call_depth)') ; write(St,'0')),write(St,' << \':\' << "<'),
+        %write(St,Name),write(St,'"'),
+        %write_arg2(St,' << \',\' << pldisplay(p,arg',')',0,Arity),
+        %write(St,' << " c=" << (int)((fs==NULL)?-1:fs->clause_index-1) << std::endl;\n')
     ; true),
     write(St,'\t\treturn true;\n'),
     close(St),
@@ -533,7 +536,7 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
         write(St,'\t\t\t\tset_stack_low_water_mark(p);\n'),
         write(St,'\t\t\tpop_frame_stack(p);\n'),
         write(St,'\t\t\tif(p->frame_top>=local_frame_top && !found) {\n'),
-        (trace_mode -> write(St,'\t\t\tstd::cout << "=== loaded continuation " << p->frame_top << std::endl;\n') ; true),
+        (trace_mode -> write(St,'\t\t\tprintf("=== loaded continuation %d\\n",p->frame_top);\n') ; true),
         write(St,'\t\t\t\tset_stack_low_water_mark(p);\n'),
         write(St,'\t\t\t\tprocess_stack_state_load_save(p,local_frame_top);\n'),
         write(St,'\t\t\t}\n'),
