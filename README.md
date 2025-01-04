@@ -1,12 +1,12 @@
 # A Proof of Concept for writing a Prolog Compiler
 
-This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment. The compiler is designed to transpile Prolog code into C++ executables, for a very small part of the Prolog language.
+This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment. The compiler is designed to transpile Prolog code into C executables, for a very small part of the Prolog language.
 
 ## Prerequisites
 
 - [SWI-Prolog](https://www.swi-prolog.org/)
 - GNU Make
-- GCC compatible C++ Compiler: `clang++` (generates the fastest code) or `gcc++`
+- GCC compatible C Compiler: `clang` (generates the fastest code) or `gcc`
 - Standard development tools (e.g., `make`)
 
 ## Usage Guide
@@ -43,7 +43,7 @@ After making the necessary edits to `dcg4pt`, you can now proceed to install `pl
 ?- pack_install(plammar).
 ```
 
-### 4. Transpiling Prolog Files to C++
+### 4. Transpiling Prolog Files to C
 
 Start by launching SWI-Prolog with your custom files:
 
@@ -53,7 +53,7 @@ This command loads the `interpreter.pl` and `compiler.pl` files, which are requi
 swipl -l interpreter.pl -l compiler.pl
 ```
 
-To transpile a Prolog file to C++, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
+To transpile a Prolog file to C, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
 
 Example:
 
@@ -84,12 +84,12 @@ compile(file("nqueens.pl"),string("queens(4,Q).")).
 
 ### 5. Generating the C++ File
 
-The compilation process generates a C++ file named `PrologGenerated.cpp`, which contains the translated code.
+The compilation process generates a C file named `PrologGenerated.c`, which contains the translated code.
 
 To inspect the generated file and compile it, run:
 
 ```bash
-cat PrologGenerated.cpp
+cat PrologGenerated.c
 make
 ```
 
@@ -125,7 +125,3 @@ trace_mode.
 ```
 
 on about line 147 of compiler.pl , then reload and rerun the transpiler, make the binary and run it.
-
-### Common Issues
-
-- **Directory Requirements:** Ensure that your files are in the correct directory structure as expected by the SWI-Prolog `pack` system, or adjust your environment accordingly.
