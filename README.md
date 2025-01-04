@@ -46,10 +46,10 @@ After making the necessary edits to `dcg4pt`, you can now proceed to install `pl
 
 Start by launching SWI-Prolog with your custom files:
 
-This command loads the `interpreter.pl` and `compiler.pl` files, which are required for the compilation process.
+This command loads the `parser.pl` and `compiler.pl` files, which are required for the compilation process.
 
 ```bash
-swipl -l interpreter.pl -l compiler.pl
+swipl -l parser.pl -l compiler.pl
 ```
 
 To transpile a Prolog file to C, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
