@@ -1,5 +1,5 @@
 #include <immintrin.h>
-#include <cstdio>
+#include <string.h>
 
 // BSD 3-Clause License
 //
@@ -31,25 +31,41 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "Prolog.h"
-#include <sstream>
-#include <cstring>
 
 //#define D 1
 
-bool Prolog::unify(UWORD val1, UWORD val2) {
+void init(Prolog* p) {
+    p->frames=(FrameStore*)malloc(1000*sizeof(FrameStore));
+    p->frame_size=sizeof(FrameStore);
+    p->base_sp=0;
+    p->stack_storage=(uint8_t*)aligned_alloc(0x20,STACK_SIZES);
+    p->variables=(UWORD*)malloc(4*STACK_SIZES);
+    p->unwind_stack_decouple=(UWORD*)malloc(4*STACK_SIZES);
+    p->unwind_stack_gc=(UWORD*)malloc(4*STACK_SIZES);
+    p->top_unwind_stack_decouple=0;
+    p->top_unwind_stack_gc=0;
+    p->stack_used=0;
+    p->top_variables=0;
+    p->top_list_values=1; // don't use 0, so that can be freelist stop
+    p->freelist_list=0;
+    p->list_values=(List*)malloc(STACK_SIZES*sizeof(List));
+}
+
+
+bool unify(Prolog* p, UWORD val1, UWORD val2) {
     // No pointer chasing. Assumed already done
     uint8_t tag1=val1&TAG_MASK;
     //pointer_chase(tag1,val1);
     uint8_t tag2=val2&TAG_MASK;;
     //pointer_chase(tag2,val2);
     if(tag2==TAG_VREF) {
-        variables[(val2>>TAG_WIDTH)]=val1;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=val2>>TAG_WIDTH;
+        p->variables[(val2>>TAG_WIDTH)]=val1;
+        p->unwind_stack_decouple[p->top_unwind_stack_decouple++]=val2>>TAG_WIDTH;
         return true;
     }
     if(tag1==TAG_VREF) {
-        variables[(val1>>TAG_WIDTH)]=val2;
-        unwind_stack_decouple[top_unwind_stack_decouple++]=(val1>>TAG_WIDTH);
+        p->variables[(val1>>TAG_WIDTH)]=val2;
+        p->unwind_stack_decouple[p->top_unwind_stack_decouple++]=(val1>>TAG_WIDTH);
         return true;
     }
     if(tag1!=tag2 && tag1+tag2!=13) {
@@ -57,9 +73,9 @@ bool Prolog::unify(UWORD val1, UWORD val2) {
     }
     switch(tag1) {
         case TAG_LIST: {
-            List& l1=list_values[val1>>TAG_WIDTH];
-            List& l2=list_values[val2>>TAG_WIDTH];
-            return unify(l1.head,l2.head) && unify(l1.tail,l2.tail);
+            List& l1=p->list_values[val1>>TAG_WIDTH];
+            List& l2=p->list_values[val2>>TAG_WIDTH];
+            return unify(p,l1.head,l2.head) && unify(p,l1.tail,l2.tail);
         } break;
         case TAG_EOL: {
             return true;
@@ -71,65 +87,78 @@ bool Prolog::unify(UWORD val1, UWORD val2) {
     }
 }
 
-UWORD Prolog::plcreate_eol() {
+UWORD plcreate_eol() {
     return TAG_EOL;
 }
 
-UWORD Prolog::plcreate_int(UWORD i) {
+UWORD plcreate_int(UWORD i) {
     return (i<<TAG_WIDTH)+TAG_INTEGER;
 }
 
-UWORD Prolog::plcreate_var(UWORD i) {
-    if(top_variables<i+1) {
-        top_variables=i+1;
+UWORD plcreate_var(Prolog* p, UWORD i) {
+    if(p->top_variables<i+1) {
+        p->top_variables=i+1;
     }
     return (i<<TAG_WIDTH)+TAG_VREF;
 }
 
-std::string Prolog::pldisplay(UWORD i) {
-    std::stringstream ss;
-    pldisplay_aux(ss,' ',false,i);
-    return ss.str();
+inline void add_char_to_string(char** ss, uint32_t* pos, char ch) {
+    (*ss)[*pos]=ch;
+    (*pos)++;
 }
 
-void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, UWORD i) {
+void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch, bool in_list, UWORD i) {
+    if(*pos+32>*plen) {plen+=32;*ss=(char*)realloc(*ss,*plen);}
     uint8_t tag;
-    pointer_chase(tag,i);
+    pointer_chase(p,&tag,&i);
     if(tag==TAG_EOL && in_list) {
         return;
     }
     UWORD v=i>>TAG_WIDTH;
     if(ch!=' ') {
-        ss << ch;
+        add_char_to_string(ss,pos,ch);
     }
     switch(tag) {
         case TAG_VREF: {
-            ss << '_' << v;
+            add_char_to_string(ss,pos,'_');
+            pos+=sprintf(*ss,"%d",v);
         } break;
         case TAG_LIST: {
             if(!in_list) {
-                ss << '[';
+                add_char_to_string(ss,pos,'[');
             }
-            List& l=list_values[v];
-            pldisplay_aux(ss,' ',false,l.head);
-            pldisplay_aux(ss,',',true,l.tail);
+            List& l=p->list_values[v];
+            pldisplay_aux(p,ss,pos,plen,' ',false,l.head);
+            pldisplay_aux(p,ss,pos,plen,',',true,l.tail);
+            if(*pos+32>*plen) {plen+=32;*ss=(char*)realloc(*ss,*plen);}
             if(!in_list) {
-                ss << ']';
+                add_char_to_string(ss,pos,']');
             }
         } break;
         case TAG_EOL: {
             if(ch==' ') {
-                ss << '[';
+                add_char_to_string(ss,pos,'[');
             }
-            ss << ']';
+            add_char_to_string(ss,pos,']');
         } break;
         case TAG_INTEGER: {
-            ss << v;
+            pos+=sprintf(*ss,"%d",v);
         } break;
         default: {
-            ss << "<error>";
+            strcpy((*ss)+*pos,"<error>");
+            pos+=7;
         }
     }
+}
+
+char* pldisplay(Prolog* p, UWORD i) {
+    uint32_t plen=64;
+    char* s=(char*)malloc(plen);
+    uint32_t pos=0;
+    pldisplay_aux(p,&s,&pos,&plen,' ',false,i);
+    if(pos+32>plen) {plen+=32;s=(char*)realloc(s,plen);}
+    s[pos]='\0';
+    return s;
 }
 
 #ifdef USE_AVX
@@ -138,8 +167,8 @@ void Prolog::pldisplay_aux(std::stringstream& ss, char ch, bool in_list, UWORD i
 #define SSE_ALIGN 0xF
 #endif
 
-void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
-    FrameStore* fs=&frames[frame_top];
+void __attribute__ ((noinline)) process_stack_state_save_aux(Prolog* p) {
+    FrameStore* fs=&p->frames[p->frame_top];
     // uint8_t* sp;
     // asm ("mov %%rsp, %0"
     // : "=r" (sp)
@@ -150,11 +179,11 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
     fs->live=(fs->stack_bottom);
     //uint8_t* top_sp=base_sp;
     //uint8_t* top_sp=std::min(base_sp,frames[fs->parent_frame].store_sp+SP_BUFFER);
-    fs->save_size=((base_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
+    fs->save_size=((p->base_sp-fs->stack_bottom)+SSE_ALIGN)&~SSE_ALIGN;
     fs->load_size=fs->save_size;
-    fs->store=(&stack_storage[STACK_SIZES-stack_used-fs->save_size]);
-    if(frame_top>1 && fs->low_water_mark_sp!=0/* && fs->low_water_mark_sp!=base_sp*/) {
-        FrameStore* fsl=&frames[frame_top-1];
+    fs->store=(&p->stack_storage[STACK_SIZES-p->stack_used-fs->save_size]);
+    if(p->frame_top>1 && fs->low_water_mark_sp!=0/* && fs->low_water_mark_sp!=base_sp*/) {
+        FrameStore* fsl=&p->frames[p->frame_top-1];
         uint8_t* i0=fs->live+fs->save_size;
         uint8_t* i1=fsl->store+fsl->save_size;
         uint32_t acc=0;
@@ -164,7 +193,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
         //std::cout << "acc=" << acc << std::endl;
         uint8_t* acc_lwm=fs->live+fs->save_size-acc;
 #if D
-        std::cout << "DIFFS(" << frame_top << ") " << (void*)acc_lwm << ':' << (void*)(fs->low_water_mark_sp+STACK_SAVE_OFFSET) << "   " << (int32_t)(fs->low_water_mark_sp+STACK_SAVE_OFFSET-acc_lwm) << std::endl;
+        std::cout << "DIFFS(" << p->frame_top << ") " << (void*)acc_lwm << ':' << (void*)(fs->low_water_mark_sp+STACK_SAVE_OFFSET) << "   " << (int32_t)(fs->low_water_mark_sp+STACK_SAVE_OFFSET-acc_lwm) << std::endl;
 #endif
         //if((int32_t)(acc_lwm-fs->low_water_mark_sp)<0)asm("int3");
         // int32_t i=fs->size-1;
@@ -172,7 +201,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
         //     i--;
         // }
     }
-    uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=nullptr && frame_top>1)?fs->low_water_mark_sp:base_sp;
+    uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=nullptr && p->frame_top>1)?fs->low_water_mark_sp:p->base_sp;
 #if D
     std::cout << "SAVE SIZE: " << fs->save_size << " -> ";
 #endif
@@ -180,13 +209,13 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
 #if D
     std::cout << fs->save_size << std::endl;
 #endif
-    if(fs->live+fs->save_size<base_sp) {
-        int32_t fptr=frame_top-1;
+    if(fs->live+fs->save_size<p->base_sp) {
+        int32_t fptr=p->frame_top-1;
         while(fptr>0) {
-            FrameStore& fsl=frames[fptr];
-            if(fsl.live+fsl.save_size>fs->live+fs->save_size) {
+            FrameStore* fsl=&p->frames[fptr];
+            if(fsl->live+fsl->save_size>fs->live+fs->save_size) {
 #if D
-                std::cout << "PTR " << frame_top << "->" << fptr << std::endl;
+                std::cout << "PTR " << p->frame_top << "->" << fptr << std::endl;
 #endif
                 fs->parent_frame=fptr;
                 break;
@@ -196,7 +225,7 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
     } else {
         fs->parent_frame=0;
     }
-    stack_used+=fs->save_size;
+    p->stack_used+=fs->save_size;
     uint64_t save_size=fs->save_size;
     uint8_t* dst=fs->store;
     uint8_t* src=fs->live;
@@ -213,20 +242,20 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_save_aux() {
     }
     //std::cout << "==================== save " << frame_top << "  lwm=" << (void*)fs->low_water_mark_sp << std::endl;
     //std::cout << "LWM " << (void*)sp << std::endl;
-    fs->unwind_stack_decouple_mark=top_unwind_stack_decouple;
-    fs->unwind_stack_gc_mark=top_unwind_stack_gc;
+    fs->unwind_stack_decouple_mark=p->top_unwind_stack_decouple;
+    fs->unwind_stack_gc_mark=p->top_unwind_stack_gc;
     fs->low_water_mark_sp=0;
 }
 
 uint32_t c=0;
 
-void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
+void __attribute__ ((noinline)) process_stack_state_load_aux(Prolog* p) {
     // Subsequent pass - restore the data
-    FrameStore* fs_low=&frames[frame_top];
-    if(fs_low->unwind_stack_decouple_mark<top_unwind_stack_decouple) {
+    FrameStore* fs_low=&p->frames[p->frame_top];
+    if(fs_low->unwind_stack_decouple_mark<p->top_unwind_stack_decouple) {
         UWORD bottom_decouple=fs_low->unwind_stack_decouple_mark;
         UWORD bottom_gc=fs_low->unwind_stack_gc_mark;
-        unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
+        unwind_stack_revert_to_mark_only(p,bottom_decouple,bottom_gc);
     }
     int32_t i=fs_low->load_size-1;
     while(fs_low->store[i]==fs_low->live[i] && i>=0) {
@@ -250,11 +279,11 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
         _mm_store_ps((float*)(dst+i),_mm_load_ps((float*)(src+i)));
 #endif
     }
-    uint32_t fptr=frame_top;
+    uint32_t fptr=p->frame_top;
     uint8_t* current_top=fs_low->live+fs_low->save_size;
-    while(current_top<base_sp) {
+    while(current_top<p->base_sp) {
         fptr--;
-        FrameStore fsptr=frames[fptr];
+        FrameStore fsptr=p->frames[fptr];
         if(fsptr.live+fsptr.save_size>current_top) {
             uint32_t new_size=fsptr.live+fsptr.save_size-current_top;
             uint32_t new_offset=fsptr.save_size-new_size;
@@ -307,13 +336,13 @@ void __attribute__ ((noinline)) Prolog::process_stack_state_load_aux() {
 #endif
 }
 
-void Prolog::pop_frame_stack() {
-    while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
-        stack_used-=frames[frame_top].save_size;
+void pop_frame_stack(Prolog* p) {
+    while(p->frame_top>0 && p->frames[p->frame_top].clause_index==p->frames[p->frame_top].clause_count) {
+        p->stack_used-=p->frames[p->frame_top].save_size;
 #if TRACE
 //        printf(" -%d\n",frame_top);
 #endif
-        frame_top--;
+        p->frame_top--;
     }
 }
 
@@ -330,24 +359,25 @@ void Prolog::pop_frame_stack() {
 //     }
 // }
 
-void Prolog::unwind_stack_revert_to_mark(UWORD bottom_decouple, UWORD bottom_gc, uint32_t frame_depth, uint32_t& parent) {
-    pop_frame_stack();
+void unwind_stack_revert_to_mark(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc, uint32_t frame_depth, uint32_t* parent) {
+    pop_frame_stack(p);
     //pop_frame_stack_track_parent(parent);
-    if(frame_top>0 && frame_depth<frame_top) {
+    if(p->frame_top>0 && frame_depth<p->frame_top) {
 #if TRACE
         std::cout << "=== loaded continuation0 " << frame_top << std::endl;
 #endif
-        process_stack_state_load_save(frame_top);
+        process_stack_state_load_save(p,p->frame_top);
     }
-    unwind_stack_revert_to_mark_only(bottom_decouple,bottom_gc);
+    unwind_stack_revert_to_mark_only(p,bottom_decouple,bottom_gc);
     //top_unwind_stack_decouple=bottom_decouple;
     //top_unwind_stack_gc=bottom_gc;
 }
 
 int main() {
     Prolog p;
-    p.__do_start();
-    p.unwind_stack_revert_to_mark_only(0,0);
+    init(&p);
+    __do_start(&p);
+    unwind_stack_revert_to_mark_only(&p,0,0);
 #ifdef TEST_GC
     UWORD acc=0;
     UWORD v=p.freelist_list;
@@ -355,8 +385,8 @@ int main() {
         acc++;
         v=p.list_values[v].head;
     }
-    std::cout << "Used list cells=" <<acc<<std::endl;
-    std::cout << "Max list cells=" <<p.top_list_values-p.static_list_variables<<std::endl;
+    printf("Used list cells=%d\n",acc);
+    printf("Max list cells=%d\n".p.top_list_values-p.static_list_variables);
 #endif
     return 0;
 }

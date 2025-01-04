@@ -1,4 +1,4 @@
-CXX:=clang++
+CXX:=clang
 
 FLAGS:= -DUSE_AVX=1
 OPT:= -ggdb3 -mavx
@@ -8,7 +8,7 @@ release:
 	@$(CXX) $(FAST) $(FLAGS) -c -o Prolog.o Prolog.cpp
 	@$(CXX) $(FAST) $(FLAGS) -c -o Prolog_process_stack_state.o Prolog_process_stack_state.S
 	@$(CXX) $(FAST) $(FLAGS) -c -o PrologGenerated.o PrologGenerated.cpp
-	@$(CXX) $(FAST) -z noexecstack -o test Prolog.o PrologGenerated.o Prolog_process_stack_state.o
+	@$(CXX) $(FAST) -z noexecstack -v -o test Prolog.o PrologGenerated.o Prolog_process_stack_state.o
 
 debug:
 	@$(CXX) $(OPT) $(FLAGS) -c -o Prolog.o Prolog.cpp

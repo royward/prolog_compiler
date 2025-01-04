@@ -27,10 +27,14 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-.globl  _ZN6Prolog29process_stack_state_load_saveEi # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
+#.globl  _ZN6Prolog29process_stack_state_load_save # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
+#        .p2align 4, 0x90
+#        .type   _ZN6Prolog29process_stack_state_load_saveEi,@function
+#_ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
+.globl  _Z29process_stack_state_load_saveN6PrologEi # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
         .p2align 4, 0x90
-        .type   _ZN6Prolog29process_stack_state_load_saveEi,@function
-_ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
+        .type   _Z29process_stack_state_load_saveN6PrologEi,@function
+_Z29process_stack_state_load_saveN6PrologEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
         test   %esi,%esi
         jne     restore
 #save
@@ -49,7 +53,8 @@ _ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load
         mov    %r15,0x30(%rsi)
         mov    %rsi,%rbx # fs
         sub    $0x8,%rsp
-        call    _ZN6Prolog28process_stack_state_save_auxEv
+        #call    _ZN6Prolog28process_stack_state_save_auxEv
+        call   process_stack_state_save_aux
         add    $0x8,%rsp
         mov    %rbx,%rax
         mov    (%rbx),%rbx # rbx is callee saved
@@ -62,9 +67,10 @@ restore:
         lea    0x0(%rsi,%rax),%rax
         mov    0x8(%rax),%rsp
         mov    %rax,%rbx # save the FrameStore reference. going to need it later
-        sub     $0x78,%rsp
-        call   _ZN6Prolog28process_stack_state_load_auxEv
-        add     $0x78,%rsp
+        sub    $0x78,%rsp
+        #call   _ZN6Prolog28process_stack_state_load_auxEv
+        call   process_stack_state_load_aux
+        add    $0x78,%rsp
         mov    0x30(%rbx),%r15
         mov    0x28(%rbx),%r14
         mov    0x20(%rbx),%r13
