@@ -31,10 +31,10 @@
 #        .p2align 4, 0x90
 #        .type   _ZN6Prolog29process_stack_state_load_saveEi,@function
 #_ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
-.globl  _Z29process_stack_state_load_saveN6PrologEi # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
+.globl  process_stack_state_load_save # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
         .p2align 4, 0x90
-        .type   _Z29process_stack_state_load_saveN6PrologEi,@function
-_Z29process_stack_state_load_saveN6PrologEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
+        .type   process_stack_state_load_save,@function
+process_stack_state_load_save: # @Prolog::process_stack_state_load_save(FrameStore* fs)
         test   %esi,%esi
         jne     restore
 #save

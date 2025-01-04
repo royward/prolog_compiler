@@ -73,9 +73,9 @@ bool unify(Prolog* p, UWORD val1, UWORD val2) {
     }
     switch(tag1) {
         case TAG_LIST: {
-            List& l1=p->list_values[val1>>TAG_WIDTH];
-            List& l2=p->list_values[val2>>TAG_WIDTH];
-            return unify(p,l1.head,l2.head) && unify(p,l1.tail,l2.tail);
+            List* l1=&p->list_values[val1>>TAG_WIDTH];
+            List* l2=&p->list_values[val2>>TAG_WIDTH];
+            return unify(p,l1->head,l2->head) && unify(p,l1->tail,l2->tail);
         } break;
         case TAG_EOL: {
             return true;
@@ -102,7 +102,7 @@ UWORD plcreate_var(Prolog* p, UWORD i) {
     return (i<<TAG_WIDTH)+TAG_VREF;
 }
 
-inline void add_char_to_string(char** ss, uint32_t* pos, char ch) {
+static inline void add_char_to_string(char** ss, uint32_t* pos, char ch) {
     (*ss)[*pos]=ch;
     (*pos)++;
 }
@@ -121,15 +121,15 @@ void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch,
     switch(tag) {
         case TAG_VREF: {
             add_char_to_string(ss,pos,'_');
-            pos+=sprintf(*ss,"%d",v);
+            *pos+=sprintf(*ss+*pos,"%d",v);
         } break;
         case TAG_LIST: {
             if(!in_list) {
                 add_char_to_string(ss,pos,'[');
             }
-            List& l=p->list_values[v];
-            pldisplay_aux(p,ss,pos,plen,' ',false,l.head);
-            pldisplay_aux(p,ss,pos,plen,',',true,l.tail);
+            List* l=&p->list_values[v];
+            pldisplay_aux(p,ss,pos,plen,' ',false,l->head);
+            pldisplay_aux(p,ss,pos,plen,',',true,l->tail);
             if(*pos+32>*plen) {plen+=32;*ss=(char*)realloc(*ss,*plen);}
             if(!in_list) {
                 add_char_to_string(ss,pos,']');
@@ -142,7 +142,7 @@ void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch,
             add_char_to_string(ss,pos,']');
         } break;
         case TAG_INTEGER: {
-            pos+=sprintf(*ss,"%d",v);
+            *pos+=sprintf(*ss+*pos,"%d",v);
         } break;
         default: {
             strcpy((*ss)+*pos,"<error>");
@@ -201,7 +201,7 @@ void __attribute__ ((noinline)) process_stack_state_save_aux(Prolog* p) {
         //     i--;
         // }
     }
-    uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=nullptr && p->frame_top>1)?fs->low_water_mark_sp:p->base_sp;
+    uint8_t* local_low_water_mark=(fs->low_water_mark_sp!=NULL && p->frame_top>1)?fs->low_water_mark_sp:p->base_sp;
 #if D
     std::cout << "SAVE SIZE: " << fs->save_size << " -> ";
 #endif

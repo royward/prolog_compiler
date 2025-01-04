@@ -31,6 +31,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "PrologGenerated.h"
 
@@ -64,7 +65,7 @@ const static UWORD STACK_SAVE_OFFSET=108;
 #endif
 #endif
 
-struct FrameStore {
+typedef struct {
     // Fields beyond here must not be altered as there are assembler offsets into them
     uint8_t* store_bx;
     uint8_t* store_sp;
@@ -86,14 +87,14 @@ struct FrameStore {
     UWORD unwind_stack_gc_mark;
     uint32_t call_depth;
     uint8_t* low_water_mark_sp;
-};
+} FrameStore;
 
-struct List {
+typedef struct {
     UWORD head;
     UWORD tail;
-};
+} List;
 
-struct Prolog {
+typedef struct {
     // Fields beyond here must not be altered as there are assembler offsets into them
     FrameStore* frames;
     uint32_t frame_top;
@@ -114,7 +115,7 @@ struct Prolog {
     UWORD freelist_list;
     uint32_t function_frame_top_last_n_clause;
     List* list_values;
-};
+} Prolog;
 
 void init(Prolog* p);
 bool unify(Prolog* p, UWORD val1, UWORD val2);
@@ -132,11 +133,11 @@ void pop_frame_stack_track_parent(Prolog* p, uint32_t* parent);
 void unwind_stack_revert_to_mark(Prolog* p, UWORD decouple_mark, UWORD gc_mark, uint32_t call_depth, uint32_t* parent);
 //void pldisplay_aux(Prolog* p, std::stringstream& ss, char ch, bool in_list, UWORD i);
 
-inline void check_stack(Prolog*) {}
+static inline void check_stack(Prolog* p) {}
 
-inline void pointer_chase(Prolog* p, uint8_t* tag, UWORD* val) {
-loop:
+static inline void pointer_chase(Prolog* p, uint8_t* tag, UWORD* val) {
     UWORD v;
+loop:
     *tag=(*val&TAG_MASK);
     if(((*tag&TAG_MASK)==TAG_VREF) && (v=p->variables[(*val>>TAG_WIDTH)])!=TAG_VAR) {
         *val=v;
@@ -144,17 +145,17 @@ loop:
     }
 }
 
-inline void pointer_chase_notag(Prolog* p, UWORD* val) {
-loop:
+static inline void pointer_chase_notag(Prolog* p, UWORD* val) {
     UWORD v;
     uint8_t tag=(*val&TAG_MASK);
+loop:
     if(((tag&TAG_MASK)==TAG_VREF) && (v=p->variables[(*val>>TAG_WIDTH)])!=TAG_VAR) {
         *val=v;
         goto loop;
     }
 }
 
-inline UWORD get_list_cell(Prolog* p) {
+static inline UWORD get_list_cell(Prolog* p) {
     if(p->freelist_list==0) {
         p->unwind_stack_gc[p->top_unwind_stack_gc++]=p->top_list_values;
         //std::cout << "get_list_cellA:" << top_list_values << std::endl;
@@ -167,31 +168,31 @@ inline UWORD get_list_cell(Prolog* p) {
     return ret;
 }
 
-inline UWORD plcreate_list(Prolog* p, UWORD h, UWORD t) {
+static inline UWORD plcreate_list(Prolog* p, UWORD h, UWORD t) {
     UWORD l=get_list_cell(p);
     p->list_values[l].head=h;
     p->list_values[l].tail=t;
     return (l<<TAG_WIDTH)+TAG_LIST;
 }
 
-inline void delete_list_cell(Prolog* p, UWORD cell) {
+static inline void delete_list_cell(Prolog* p, UWORD cell) {
     //std::cout << "delete_list_cell:" << cell << std::endl;
     p->list_values[cell].head=p->freelist_list;
     p->freelist_list=cell;
 }
 
-inline void var_set_add_to_unwind_stack(Prolog* p, UWORD v, UWORD val) {
+static inline void var_set_add_to_unwind_stack(Prolog* p, UWORD v, UWORD val) {
     //if((val&TAG_MASK)==TAG_LIST)std::cout << "tag: " << v << ":" << val << std::endl;
     p->variables[v]=val;
     p->unwind_stack_decouple[p->top_unwind_stack_decouple++]=v;
 }
 
-inline void var_set_add_to_unwind_stack_nogc(Prolog* p, UWORD v, UWORD val) {
+static inline void var_set_add_to_unwind_stack_nogc(Prolog* p, UWORD v, UWORD val) {
     p->variables[v]=val;
     p->unwind_stack_decouple[p->top_unwind_stack_decouple++]=v;
 }
 
-inline void unwind_stack_revert_to_mark_only(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc) {
+static inline void unwind_stack_revert_to_mark_only(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc) {
     //std::cout << bottom_decouple << "::" << top_unwind_stack_decouple << "  ";
     for(UWORD i=bottom_decouple;i<p->top_unwind_stack_decouple;i++) {
         //std::cout << (((variables[var]&TAG_MASK)==TAG_LIST)?1:0);
@@ -205,7 +206,7 @@ inline void unwind_stack_revert_to_mark_only(Prolog* p, UWORD bottom_decouple, U
     p->top_unwind_stack_gc=bottom_gc;
 }
 
-inline void set_stack_low_water_mark(Prolog* p) {
+static inline void set_stack_low_water_mark(Prolog* p) {
 #ifdef __OPTIMIZE__
     uint8_t* sp=(uint8_t*)__builtin_frame_address(0);
 #else
