@@ -1,6 +1,6 @@
 # A Proof of Concept for writing a Prolog Compiler
 
-This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment on Linux. The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language.
+This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment on Linux. The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language - enough to demonstrate unification and backtracking. This was built to demonstrate code running in both directions (`append.pl`) and a program with multiple solutions using heavy backtracking (`nqueens.pl`).
 
 ## Prerequisites
 
