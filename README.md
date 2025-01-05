@@ -1,19 +1,20 @@
 # A Proof of Concept for writing a Prolog Compiler
 
-This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment. The compiler is designed to transpile Prolog code into C++ executables, for a very small part of the Prolog language.
+This guide provides instructions on setting up and using a partial Prolog compiler within the SWI-Prolog environment on Linux.
+
+The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language - enough to demonstrate unification and backtracking. This was built to demonstrate code running in both directions (`append.pl`) and a program with multiple solutions using heavy backtracking (`nqueens.pl`).
 
 ## Prerequisites
 
 - [SWI-Prolog](https://www.swi-prolog.org/)
 - GNU Make
-- GCC compatible C++ Compiler: `clang++` (generates the fastest code) or `gcc++`
-- Standard development tools (e.g., `make`)
+- GCC compatible C Compiler: `clang` (generates the fastest code) or `gcc`
 
 ## Usage Guide
 
 ### 1. Installing Required Packages
 
-Before starting, you need to install the `dcg4pt` package within SWI-Prolog:
+Before starting, you need to install the `dcg4pt` package from within SWI-Prolog:
 
 ```prolog
 ?- pack_install(dcg4pt).
@@ -31,29 +32,29 @@ In order to ensure compatibility with newer versions of SWI-Prolog, you may need
    <EDITOR> ~/.local/share/swi-prolog/pack/dcg4pt/prolog/dcg4pt.pl
    ```
 
-2. Locate the two spots where an unquoted comma `(,)` is used. Replace the unquoted comma with a quoted one `(',')` to make the code compatible with SWI-Prolog.
+2. Locate the two spots where an unquoted comma `(,)` is used. Replace the unquoted comma with a quoted one `(',')` to make the code compatible with SWI-Prolog. If you have difficulty finding them, continue the setup and come back and fix it when it breaks.
 
 3. Save the file and exit the editor.
 
 ### 3. Installing `plammar`
 
-After making the necessary edits to `dcg4pt`, you can now proceed to install `plammar`:
+After making the necessary edits to `dcg4pt`, you can now proceed to install `plammar` from within SWI-prolog:
 
 ```prolog
 ?- pack_install(plammar).
 ```
 
-### 4. Transpiling Prolog Files to C++
+### 4. Compiling Prolog Files to C
 
 Start by launching SWI-Prolog with your custom files:
 
-This command loads the `interpreter.pl` and `compiler.pl` files, which are required for the compilation process.
+This command loads the `parser.pl` and `compiler.pl` files, which are required for the compilation process.
 
 ```bash
-swipl -l interpreter.pl -l compiler.pl
+swipl -l parser.pl -l compiler.pl
 ```
 
-To transpile a Prolog file to C++, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
+To compile a Prolog file to C, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
 
 Example:
 
@@ -84,12 +85,12 @@ compile(file("nqueens.pl"),string("queens(4,Q).")).
 
 ### 5. Generating the C++ File
 
-The compilation process generates a C++ file named `PrologGenerated.cpp`, which contains the translated code.
+The compilation process generates C files named `PrologGenerated.h` which contains some macros, and `PrologGenerated.c` which contains the translated code.
 
 To inspect the generated file and compile it, run:
 
 ```bash
-cat PrologGenerated.cpp
+cat PrologGenerated.c
 make
 ```
 
@@ -114,18 +115,23 @@ make debug
 
 To generate an execution trace, just change:
 
-```
+```prolog
 trace_mode :- fail.
 ```
 
 to
 
-```
+```prolog
 trace_mode.
 ```
 
-on about line 147 of compiler.pl , then reload and rerun the transpiler, make the binary and run it.
+on about line 55 of `compiler.pl` , then reload and rerun the transpiler, make the binary and run it.
 
-### Common Issues
+### 9. Changing the word size
 
-- **Directory Requirements:** Ensure that your files are in the correct directory structure as expected by the SWI-Prolog `pack` system, or adjust your environment accordingly.
+The word size for integers and indicies such as variables, list entries and trail entries can be set to 16, 32 or 64 bits. To change this, set the value inside `word_size` on about line 57 of `compiler.pl`:
+
+```prolog
+word_size(32).
+```
+
