@@ -113,14 +113,23 @@ make debug
 
 To generate an execution trace, just change:
 
-```
+```prolog
 trace_mode :- fail.
 ```
 
 to
 
-```
+```prolog
 trace_mode.
 ```
 
-on about line 147 of compiler.pl , then reload and rerun the transpiler, make the binary and run it.
+on about line 55 of `compiler.pl` , then reload and rerun the transpiler, make the binary and run it.
+
+### 9. Changing the word size
+
+The word size for integers and indicies such as variables, list entries and trail entries can be set to 16, 32 or 64 bits. To change this, set the value inside `word_size` on about line 57 of `compiler.pl`:
+
+```prolog
+word_size(32).
+```
+
