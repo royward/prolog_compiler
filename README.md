@@ -1,6 +1,8 @@
 # A Proof of Concept for writing a Prolog Compiler
 
-This guide provides instructions on setting up and using the Prolog compiler within the SWI-Prolog environment on Linux. The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language - enough to demonstrate unification and backtracking. This was built to demonstrate code running in both directions (`append.pl`) and a program with multiple solutions using heavy backtracking (`nqueens.pl`).
+This guide provides instructions on setting up and using a partial Prolog compiler within the SWI-Prolog environment on Linux.
+
+The compiler is designed to transpile Prolog code into C executables, for a very small subset of the Prolog language - enough to demonstrate unification and backtracking. This was built to demonstrate code running in both directions (`append.pl`) and a program with multiple solutions using heavy backtracking (`nqueens.pl`).
 
 ## Prerequisites
 
@@ -42,7 +44,7 @@ After making the necessary edits to `dcg4pt`, you can now proceed to install `pl
 ?- pack_install(plammar).
 ```
 
-### 4. Transpiling Prolog Files to C
+### 4. Compiling Prolog Files to C
 
 Start by launching SWI-Prolog with your custom files:
 
@@ -52,7 +54,7 @@ This command loads the `parser.pl` and `compiler.pl` files, which are required f
 swipl -l parser.pl -l compiler.pl
 ```
 
-To transpile a Prolog file to C, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
+To compile a Prolog file to C, use the `compile/2` predicate. It takes two arguments: the file name and a test query as a string.
 
 Example:
 
