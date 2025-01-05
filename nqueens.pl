@@ -1,6 +1,7 @@
 range(M,M,[M]).
 range(M,N,[M|Ns]) :- M =\= N, M1 is M+1,range(M1,N,Ns).
 
+% 'select' is part of SWI-Prolog, but a version is provided here so that transpiler has access to it
 selectx(X,[X|Xs],Xs).
 selectx(X,[Y|Ys],[Y|Zs]) :- selectx(X,Ys,Zs).
 
@@ -20,6 +21,6 @@ not_attack(Q0,D0,[Q|Qs]) :-
     D1 is D0+1,
     not_attack(Q0,D1,Qs).
 
-nqueens(4,Q).
+% nqueens(12,Q).
 
-% time(nqueens(16,Q)).
+% time(nqueens(12,Q)).

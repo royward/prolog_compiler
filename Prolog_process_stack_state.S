@@ -27,10 +27,6 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#.globl  _ZN6Prolog29process_stack_state_load_save # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
-#        .p2align 4, 0x90
-#        .type   _ZN6Prolog29process_stack_state_load_saveEi,@function
-#_ZN6Prolog29process_stack_state_load_saveEi: # @Prolog::process_stack_state_load_save(FrameStore* fs)
 .globl  process_stack_state_load_save # -- Begin function Prolog::process_stack_state_load_save(FrameStore* fs)
         .p2align 4, 0x90
         .type   process_stack_state_load_save,@function
@@ -53,7 +49,6 @@ process_stack_state_load_save: # @Prolog::process_stack_state_load_save(FrameSto
         mov    %r15,0x30(%rsi)
         mov    %rsi,%rbx # fs
         sub    $0x8,%rsp
-        #call    _ZN6Prolog28process_stack_state_save_auxEv
         call   process_stack_state_save_aux
         add    $0x8,%rsp
         mov    %rbx,%rax
@@ -68,7 +63,6 @@ restore:
         mov    0x8(%rax),%rsp
         mov    %rax,%rbx # save the FrameStore reference. going to need it later
         sub    $0x78,%rsp
-        #call   _ZN6Prolog28process_stack_state_load_auxEv
         call   process_stack_state_load_aux
         add    $0x78,%rsp
         mov    0x30(%rbx),%r15
@@ -80,57 +74,3 @@ restore:
         mov    %rbx,%rax
         mov    (%rbx),%rbx
         ret
-#         # rax - scratch,store
-#         # rcx - counter for scratch_buf entries
-#         # rdx - store
-#         # rbx - this
-#         # rpb - scratch buf base
-#         # rsi - live
-#         # rdi - memory copy counter
-#         # r8  - memory copy limit
-#         # r9  - frame size
-#         # r10 - frame start offset (also 3*counter)
-#         mov    %eax,%ecx #guarantee at least one frame to copy, so don't need to check for <0
-#         #mov    $0,%ecx
-#         mov    0xC(%rbx),%r9d # frame size
-#         mov    0x10(%rbx),%rbp # scratch buf base
-# outer_loop:
-#         lea    (%rcx,%rcx,2),%r10
-#         mov    0x0(%rbp,%r10,4),%eax # current frame
-#         mov    0x4(%rbp,%r10,4),%r8d # override size
-#         mov    0x8(%rbp,%r10,4),%r10d
-#         mul    %r9d
-#         mov    0x0(%rbx),%rdx
-#         lea    0x0(%rdx,%rax),%rax
-#         #mov    0x48(%rax),%r8 #fs->size # get from override instead
-#         test   %r8d,%r8d
-#         je     copy_to_stack_noloop
-#         mov    0x38(%rax),%rdx # fs->store
-#         mov    0x40(%rax),%rsi # fs->live
-#         add    %r10,%rdx
-#         add    %r10,%rsi
-#         xor    %edi,%edi
-#         .p2align 4, 0x90
-# copy_to_stack_loop:
-# #ifdef USE_AVX
-#         vmovaps (%rdx,%rdi),%ymm0
-#         vmovaps %ymm0,(%rsi,%rdi)
-#         add    $0x20,%edi
-# #else
-#         movaps (%rdx,%rdi),%xmm0
-#         movaps %xmm0,(%rsi,%rdi)
-#         add    $0x10,%edi
-# #endif
-#         cmp    %edi,%r8d
-#         jne    copy_to_stack_loop
-# copy_to_stack_noloop:
-#         sub    $1,%ecx
-#         jge    outer_loop
-#         mov    0x30(%rax),%r15
-#         mov    0x28(%rax),%r14
-#         mov    0x20(%rax),%r13
-#         mov    0x18(%rax),%r12
-#         mov    0x10(%rax),%rbp
-#         mov    0x08(%rax),%rsp
-#         mov    (%rax),%rbx
-#         ret
