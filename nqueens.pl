@@ -1,7 +1,7 @@
 range(M,M,[M]).
 range(M,N,[M|Ns]) :- M =\= N, M1 is M+1,range(M1,N,Ns).
 
-% 'select' is part of SWI-Prolog, but a version is provided here so that transpiler has access to it
+% 'select' is part of SWI-Prolog, but a version is provided here so that compiler has access to it
 selectx(X,[X|Xs],Xs).
 selectx(X,[Y|Ys],[Y|Zs]) :- selectx(X,Ys,Zs).
 

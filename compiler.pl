@@ -40,6 +40,10 @@ compile(file("append.pl"),string("append(X,[],[]).")).
 compile(file("append.pl"),string("append(X,[3,4],[1,2,3,4]).")).
 compile(file("append.pl"),string("append(X,Y,[1]).")).
 compile(file("append.pl"),string("append(X,Y,[1,2,3,4]).")).
+compile(file("append.pl"),string("append([1],X,[2,3,4]).")).
+compile(file("append.pl"),string("append(X,[1],[2,3,4]).")).
+compile(file("append.pl"),string("append([1,2],X,Y).")).
+compile(file("append.pl"),string("append(X,[1,2],Y).")).
 compile(file("nqueens.pl"),string("nqueens(1,Q).")).
 compile(file("nqueens.pl"),string("range(1,4,X).")).
 compile(file("nqueens.pl"),string("nqueens_aux([1],[],Q).")).
@@ -82,16 +86,16 @@ compile(RawProgram,RawGoal) :-
     write(St,'\tFrameStore* frame=&p->frames[p->frame_top];\n'),
     write(St,'\tframe->clause_index=0;\n'),
     write(St,'\tframe->clause_count=0;\n'),
-    write(St,'\tframe->parent_frame=0;\n'),
+    %write(St,'\tframe->parent_frame=0;\n'),
     (trace_mode -> write(St,'\tframe->call_depth=1;\n') ; true),
     write(St,'\tp->frames[0].store_sp=p->base_sp=p->frames[0].low_water_mark_sp=(uint8_t*)__builtin_frame_address(0);\n'),
-    write(St,'\tuint32_t parent_frame=0;\n'),
+    %write(St,'\tuint32_t parent_frame=0;\n'),
     nth0(InitClause,Pdict,f(Name,Arity)),
     (InputDict=[] -> true ; foldl(do_init(St),InputDict,0,_)),
     write(St,'\tUWORD voffset_next='),write(St,I1),write(St,';\n'),
     write(St,'\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
     write_arg(St,', goal_args',0,Arity),
-    write(St,', voffset_next, &voffset_next, parent_frame);\n'),
+    write(St,', voffset_next, &voffset_next);\n'), % , parent_frame
     write(St,'\tif(found) {\n'),
     (InputDict=[] -> write(St,'\t\tprintf("true.\\n);\n') ;  write(St,'\t\tchar* s;\n'),foldl(do_output(St),InputDict,0,_)),
     write(St,'\t} else {\n'),
@@ -152,7 +156,7 @@ write_arg2(St,String1,String2,N,M) :-
 write_function_template(St,f(Name,Arity)) :-
     write(St,'uint8_t '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog* p'),
     write_arg(St,', UWORD arg',0,Arity),
-    write(St,', UWORD voffset, UWORD* voffset_new, uint32_t parent_frame);\n').
+    write(St,', UWORD voffset, UWORD* voffset_new);\n'). % , uint32_t parent_frame
 
 create_multifire_matrix([],[]).
 create_multifire_matrix([clause(_,Args,_)|RestC],[Row|RestR]) :-
@@ -176,7 +180,7 @@ compile_predicate(St,Pdict,ClauseCounts,f(Name,Arity),Predicate) :-
     length(Predicate,LP),
     nl(St),write(St,'uint8_t '),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(Prolog* p'),
     write_arg(St,', UWORD arg',0,Arity),
-    write(St,', UWORD voffset, UWORD* voffset_new, uint32_t parent_frame) {\n'),
+    write(St,', UWORD voffset, UWORD* voffset_new) {\n'), % , uint32_t parent_frame
     (LP>1 -> write(St,'\tFrameStore* fs=NULL;\n') ; true),
     write(St,'\tUWORD unwind_stack_decouple_mark=p->top_unwind_stack_decouple;\n'),
     write(St,'\tUWORD unwind_stack_gc_mark=p->top_unwind_stack_gc;\n'),
@@ -246,13 +250,13 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
         write(St,'\t\t\tfs->clause_index='),write(St,NClause),write(St,';\n'),
         write(St,'\t\t\tfunction_frame_top=p->frame_top;\n'),
         write(St,'\t\t\tfs->clause_count='),write(St,LP),write(St,';\n'),
-        write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
-        write(St,'\t\t\tparent_frame=p->frame_top;\n'),
+        %write(St,'\t\t\tfs->parent_frame=parent_frame;\n'),
+        %write(St,'\t\t\tparent_frame=p->frame_top;\n'),
         write(St,'\t\t\tfs=process_stack_state_load_save(p,0);\n'),
         %write(St,'check_stack(p);\n'),
         write(St,'\t\t\tfs->clause_index++;\n'),
         write(St,'\t\t\tif(fs->clause_index!='),write(St,NClause1),write(St,') {\n'),
-        write(St,'\t\t\t\tunwind_stack_revert_to_mark(p,unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top,&parent_frame);\n'),
+        write(St,'\t\t\t\tunwind_stack_revert_to_mark(p,unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top);\n'), % ,&parent_frame
         %write(St,'\t\t\t\tparent_frame=p->frame_top;\n'),
         write(St,'\t\t\t\tgoto next_'),write(St,Label),write(St,';\n'),
         write(St,'\t\t\t} else {\n'),
@@ -287,7 +291,7 @@ compile_clause(Name,Arity,Sto,Pdict,ClauseCounts,LP,clause(Dict,Args,Body),MRow,
     write(Sto,PredBody),
     (LP>1 -> write(Sto,'\t}\n') ; true),
     write(Sto,'fail_'),write(Sto,Label),write(Sto,':;\n'),
-    write(Sto,'\tunwind_stack_revert_to_mark(p,unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top,&parent_frame);\n'),
+    write(Sto,'\tunwind_stack_revert_to_mark(p,unwind_stack_decouple_mark,unwind_stack_gc_mark,function_frame_top);\n'), % ,&parent_frame
     write(Sto,'fail_'),write(Sto,Label),write(Sto,'_no_unwind:;\n'),
     (LP>1,NClause1\=LP -> write(Sto,'\tif(fs!=NULL)fs->clause_index++;\n') ; true),
     write(Sto,'next_'),write(Sto,Label),write(Sto,':;\n').
@@ -532,7 +536,7 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
         check_pointer_chase_notag_for_fcall_list(St,Args,DictT,Sdict1,Sdict2),
         write(St,'\t\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St,DictT),Args),
-        write(St,', voffset_next, &voffset_next, parent_frame);\n'),
+        write(St,', voffset_next, &voffset_next);\n'), % , parent_frame
         write(St,'\t\t\t\tset_stack_low_water_mark(p);\n'),
         write(St,'\t\t\tpop_frame_stack(p);\n'),
         write(St,'\t\t\tif(p->frame_top>=local_frame_top && !found) {\n'),
@@ -550,8 +554,8 @@ compile_clause_body(St,DictT,Label,Pdict,LP,ClauseCounts,fcall(Index,Args),Used1
         check_pointer_chase_notag_for_fcall_list(St,Args,DictT,Sdict1,Sdict2),
         write(St,'\t\tbool found='),write(St,Name),write(St,'_'),write(St,Arity),write(St,'(p'),
         maplist(compile_clause_body_args_with_comma(St,DictT),Args),
-        write(St,', voffset_next, &voffset_next, parent_frame);\n'),
-        (LP>1 -> write(St,'\t\tpop_frame_stack(p,parent_frame);\n') ; true),
+        write(St,', voffset_next, &voffset_next);\n'), % , parent_frame
+        (LP>1 -> write(St,'\t\tpop_frame_stack(p);\n') ; true), % ,parent_frame
         write(St,'\t\tset_stack_low_water_mark(p);\n'),
         write(St,'\t\tif(!found) {goto fail_'),write(St,Label),
         (Sdict2=state(_,_,_,true) -> true ; write(St,'_no_unwind')),

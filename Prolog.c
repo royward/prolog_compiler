@@ -87,21 +87,6 @@ bool unify(Prolog* p, UWORD val1, UWORD val2) {
     }
 }
 
-UWORD plcreate_eol() {
-    return TAG_EOL;
-}
-
-UWORD plcreate_int(UWORD i) {
-    return (i<<TAG_WIDTH)+TAG_INTEGER;
-}
-
-UWORD plcreate_var(Prolog* p, UWORD i) {
-    if(p->top_variables<i+1) {
-        p->top_variables=i+1;
-    }
-    return (i<<TAG_WIDTH)+TAG_VREF;
-}
-
 static inline void add_char_to_string(char** ss, uint32_t* pos, char ch) {
     (*ss)[*pos]=ch;
     (*pos)++;
@@ -117,6 +102,9 @@ void pldisplay_aux(Prolog* p, char** ss, uint32_t* pos, uint32_t *plen, char ch,
         return;
     }
     UWORD v=i>>TAG_WIDTH;
+    if(tag!=TAG_LIST && ch==',' && in_list) {
+        ch='|';
+    }
     if(ch!=' ') {
         add_char_to_string(ss,pos,ch);
     }
@@ -217,13 +205,13 @@ void __attribute__ ((noinline)) process_stack_state_save_aux(Prolog* p) {
 #if D
                 std::cout << "PTR " << p->frame_top << "->" << fptr << std::endl;
 #endif
-                fs->parent_frame=fptr;
+                //fs->parent_frame=fptr;
                 break;
             }
             fptr--;
         }
     } else {
-        fs->parent_frame=0;
+        //fs->parent_frame=0;
     }
     p->stack_used+=fs->save_size;
     uint64_t save_size=fs->save_size;
@@ -336,16 +324,6 @@ void __attribute__ ((noinline)) process_stack_state_load_aux(Prolog* p) {
 #endif
 }
 
-void pop_frame_stack(Prolog* p) {
-    while(p->frame_top>0 && p->frames[p->frame_top].clause_index==p->frames[p->frame_top].clause_count) {
-        p->stack_used-=p->frames[p->frame_top].save_size;
-#if TRACE
-//        printf(" -%d\n",frame_top);
-#endif
-        p->frame_top--;
-    }
-}
-
 // void Prolog::pop_frame_stack_track_parent(uint32_t &parent) {
 //     while(frame_top>0 && frames[frame_top].clause_index==frames[frame_top].clause_count) {
 //         if(parent==frame_top) {
@@ -358,20 +336,6 @@ void pop_frame_stack(Prolog* p) {
 //         frame_top--;
 //     }
 // }
-
-void unwind_stack_revert_to_mark(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc, uint32_t frame_depth, uint32_t* parent) {
-    pop_frame_stack(p);
-    //pop_frame_stack_track_parent(parent);
-    if(p->frame_top>0 && frame_depth<p->frame_top) {
-#if TRACE
-        printf("=== loaded continuation0 %d\n",p->frame_top);
-#endif
-        process_stack_state_load_save(p,p->frame_top);
-    }
-    unwind_stack_revert_to_mark_only(p,bottom_decouple,bottom_gc);
-    //top_unwind_stack_decouple=bottom_decouple;
-    //top_unwind_stack_gc=bottom_gc;
-}
 
 int main() {
     Prolog p;

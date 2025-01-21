@@ -78,7 +78,7 @@ typedef struct {
     uint8_t* live;
     uint32_t save_size;
     int32_t clause_index;
-    uint32_t parent_frame;
+    //uint32_t parent_frame;
     // Fields up to here must not be altered as there are assembler offsets into them
     uint32_t load_size;
     int32_t clause_count;
@@ -120,20 +120,32 @@ typedef struct {
 void init(Prolog* p);
 bool unify(Prolog* p, UWORD val1, UWORD val2);
 void __do_start(Prolog* p);
-UWORD plcreate_eol();
-UWORD plcreate_int(UWORD i);
-UWORD plcreate_var(Prolog* p, UWORD i);
 char* pldisplay(Prolog* p, UWORD x);
 void process_stack_state(Prolog* p, FrameStore* fs);
 FrameStore* process_stack_state_load_save(Prolog* p, int flag);
 void process_stack_state_save_aux(Prolog* p);
 void process_stack_state_load_aux(Prolog* p);
-void pop_frame_stack(Prolog* p);
-void pop_frame_stack_track_parent(Prolog* p, uint32_t* parent);
-void unwind_stack_revert_to_mark(Prolog* p, UWORD decouple_mark, UWORD gc_mark, uint32_t call_depth, uint32_t* parent);
+//void pop_frame_stack(Prolog* p);
+//void pop_frame_stack_track_parent(Prolog* p, uint32_t* parent);
+//void unwind_stack_revert_to_mark(Prolog* p, UWORD decouple_mark, UWORD gc_mark, uint32_t call_depth/*, uint32_t* parent*/);
 //void pldisplay_aux(Prolog* p, std::stringstream& ss, char ch, bool in_list, UWORD i);
 
 static inline void check_stack(Prolog* p) {}
+
+static inline UWORD plcreate_eol() {
+    return TAG_EOL;
+}
+
+static inline UWORD plcreate_int(UWORD i) {
+    return (i<<TAG_WIDTH)+TAG_INTEGER;
+}
+
+static inline UWORD plcreate_var(Prolog* p, UWORD i) {
+    if(p->top_variables<i+1) {
+        p->top_variables=i+1;
+    }
+    return (i<<TAG_WIDTH)+TAG_VREF;
+}
 
 static inline void pointer_chase(Prolog* p, uint8_t* tag, UWORD* val) {
     UWORD v;
@@ -193,6 +205,16 @@ static inline void var_set_add_to_unwind_stack_nogc(Prolog* p, UWORD v, UWORD va
     p->unwind_stack_decouple[p->top_unwind_stack_decouple++]=v;
 }
 
+static inline void pop_frame_stack(Prolog* p) {
+    while(p->frame_top>0 && p->frames[p->frame_top].clause_index==p->frames[p->frame_top].clause_count) {
+        p->stack_used-=p->frames[p->frame_top].save_size;
+#if TRACE
+//        printf(" -%d\n",frame_top);
+#endif
+        p->frame_top--;
+    }
+}
+
 static inline void unwind_stack_revert_to_mark_only(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc) {
     //std::cout << bottom_decouple << "::" << top_unwind_stack_decouple << "  ";
     for(UWORD i=bottom_decouple;i<p->top_unwind_stack_decouple;i++) {
@@ -205,6 +227,20 @@ static inline void unwind_stack_revert_to_mark_only(Prolog* p, UWORD bottom_deco
         delete_list_cell(p,p->unwind_stack_gc[i]);
     }
     p->top_unwind_stack_gc=bottom_gc;
+}
+
+static inline void unwind_stack_revert_to_mark(Prolog* p, UWORD bottom_decouple, UWORD bottom_gc, uint32_t frame_depth/*, uint32_t* parent*/) {
+    pop_frame_stack(p);
+    //pop_frame_stack_track_parent(parent);
+    if(p->frame_top>0 && frame_depth<p->frame_top) {
+#if TRACE
+        printf("=== loaded continuation0 %d\n",p->frame_top);
+#endif
+        process_stack_state_load_save(p,p->frame_top);
+    }
+    unwind_stack_revert_to_mark_only(p,bottom_decouple,bottom_gc);
+    //top_unwind_stack_decouple=bottom_decouple;
+    //top_unwind_stack_gc=bottom_gc;
 }
 
 static inline void set_stack_low_water_mark(Prolog* p) {
