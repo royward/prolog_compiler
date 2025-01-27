@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define N 14
+#define N 16
 
 int solutions = 0;
 
