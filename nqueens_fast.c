@@ -15,8 +15,7 @@ void solve(int n) {
             for (int i = 0; i < row; i++) {
                 int b = board[i];
                 int d = row-i;
-                if (b == col ||               // Same column
-                    b == col - d ||     // Same major diagonal
+                if (b == col - d ||     // Same major diagonal
                     b == col + d) {     // Same minor diagonal
                     goto conflict;
                 }
