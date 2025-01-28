@@ -15,7 +15,6 @@ nqueens_aux(UnplacedQs,SafeQs,Qs) :-
 
 not_attack(_A1,_A2,[]).
 not_attack(Q0,D0,[Q|Qs]) :-
-    Q0 =\= Q,
     Q0 =\= D0+Q,
     Q =\= D0+Q0,
     D1 is D0+1,

@@ -45,7 +45,6 @@ nqueens_aux(UnplacedQs, SafeQs, Qs) :-
 :- pred not_attack(int::in, int::in, list(int)::in) is semidet.
 not_attack(_, _, []).
 not_attack(Q0, D0, [Q | Qs]) :-
-    Q0 \= Q,
     Q0 \= D0 + Q,
     Q \= D0 + Q0,
     D1 = D0 + 1,
@@ -53,7 +52,7 @@ not_attack(Q0, D0, [Q | Qs]) :-
 
 % Main predicate to run the N-Queens solver and print the result.
 main(!IO) :-
-    N = 14,  % Change this to solve for other sizes.
+    N = 12,  % Change this to solve for other sizes.
     solutions(nqueens(N), Result),
     io.write_list(Result, "\n", write_inner_list, !IO),
     io.nl(!IO).

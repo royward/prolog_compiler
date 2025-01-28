@@ -44,8 +44,8 @@ found_solution:
             solutions++;
             // Found a solution
             printf("[");
-            printf("%d",board[MAX_N-1]);
-            for (int i = MAX_N-2; i >=0; i--) {
+            printf("%d",board[n-1]);
+            for (int i = n-2; i >=0; i--) {
                 printf(",%d",board[i]);
             }
             printf("]\n");

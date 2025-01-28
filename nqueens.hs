@@ -1,12 +1,7 @@
 -- https://albertnetymk.github.io/2018/02/16/queens/
+-- ghc -package time --make nqueens.hs
 
 import Data.Time
-
--- import Control.Monad
--- nqueens n = foldM (\y _ -> [ x : y | x <- [1..n], safe x y 1]) [] [1..n]
---   where
---     safe x [] _ = True
---     safe x (c:y) n = and [ x /= c , x /= c + n , x /= c - n , safe x y (n+1)]
 
 import Data.List (delete)
 type Board = [Int]
@@ -24,14 +19,8 @@ nqueens n = map fst $ loop [([], [1..n])] 0
 
     safe x board = and [ x /= c + n && x /= c - n  | (n,c) <- zip [1..] board]
 
--- import Control.Monad
--- import Data.List (delete)
--- queens n = map fst $ foldM oneMorequeens ([],[1..n]) [1..n]  where
---   oneMorequeens (y,d) _ = [(x:y, delete x d) | x <- d, safe x]  where
---     safe x = and [x /= c + n && x /= c - n | (n,c) <- zip [1..] y]
-
 main = do
   start <- getCurrentTime
-  print $ nqueens 12
+  print $ length (nqueens 14)
   stop <- getCurrentTime
   print $ diffUTCTime stop start
